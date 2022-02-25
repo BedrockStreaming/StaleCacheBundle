@@ -7,27 +7,29 @@ use Bedrock\StaleCacheBundle\Event\StaleCacheUsage;
 use Bedrock\StaleCacheBundle\Tests\Mock\UnavailableResourceExceptionMock;
 use PHPUnit\Framework\TestCase;
 use Prophecy\Argument;
+use Prophecy\PhpUnit\ProphecyTrait;
 use Psr\EventDispatcher\EventDispatcherInterface;
+use Symfony\Component\Cache\CacheItem;
 use Symfony\Contracts\Cache\ItemInterface;
 use Symfony\Contracts\Cache\TagAwareCacheInterface;
 
 class StaleTest extends TestCase
 {
-    private $staleCache;
+   use ProphecyTrait;
+
     private $internalCache;
     private $eventDispatcher;
     private Stale $testedInstance;
 
     public function setUp(): void
     {
-        $this->staleCache = $this->prophesize(TagAwareCacheInterface::class);
         $this->internalCache = $this->prophesize(TagAwareCacheInterface::class);
         $this->eventDispatcher = $this->prophesize(EventDispatcherInterface::class);
 
         $this->testedInstance = new Stale(
-            $this->staleCache->reveal(),
             $this->internalCache->reveal(),
-            $this->eventDispatcher->reveal()
+            $this->eventDispatcher->reveal(),
+            1800
         );
     }
 
@@ -39,21 +41,20 @@ class StaleTest extends TestCase
         $beta = (float) rand(1, 10);
 
         $assertCallbackReturnsValue = function (callable $passedCallback) use ($value) {
-            $item = $this->prophesize(ItemInterface::class);
+            $item = new CacheItem();
             $save = true;
 
-            return $value === $passedCallback($item->reveal(), $save);
+            $test= $value === $passedCallback($item, $save);
+
+            return $test;
         };
 
-        $this->internalCache->get($key, Argument::that($assertCallbackReturnsValue), $beta, Argument::any())
+        $this->internalCache->get($key, Argument::that($assertCallbackReturnsValue),  Argument::any(), Argument::any())
             ->willReturn($value)
             ->shouldBeCalledOnce();
 
-        $this->staleCache->get($key, Argument::that($assertCallbackReturnsValue), \INF, Argument::any())
-            ->willReturn($value)
-            ->shouldBeCalledOnce();
-
-        $result = $this->testedInstance->get($key, $callback, $beta);
+        $metadata = [];
+        $result = $this->testedInstance->get($key, $callback, $beta, $metadata);
         self::assertEquals($value, $result);
     }
 
@@ -65,21 +66,18 @@ class StaleTest extends TestCase
         $beta = (float) rand(1, 10);
 
         $assertCallbackReturnsValue = function (callable $passedCallback) use ($value) {
-            $item = $this->prophesize(ItemInterface::class);
+            $item = new CacheItem();
             $save = false;
 
-            return $value === $passedCallback($item->reveal(), $save);
+            return $value === $passedCallback($item, $save);
         };
 
-        $this->internalCache->get($key, Argument::that($assertCallbackReturnsValue), $beta, Argument::any())
+        $this->internalCache->get($key, Argument::that($assertCallbackReturnsValue),  Argument::any(), Argument::any())
             ->willReturn($value)
             ->shouldBeCalledOnce();
 
-        $this->staleCache->get($key, Argument::that($assertCallbackReturnsValue), \INF, Argument::any())
-            ->willReturn($value)
-            ->shouldNotBeCalled();
-
-        $result = $this->testedInstance->get($key, $callback, $beta);
+        $metadata = [];
+        $result = $this->testedInstance->get($key, $callback, $beta, $metadata);
         self::assertEquals($value, $result);
     }
 
@@ -87,16 +85,15 @@ class StaleTest extends TestCase
     {
         $key = uniqid('key_', true);
         $value = uniqid('value_', true);
-        $callback = fn () => $value;
+        $callback = fn () => self::fail('This callback should not be called');
         $beta = (float) rand(1, 10);
 
-        $this->internalCache->get($key, Argument::any(), $beta, Argument::any())
-            ->willReturn($value);
+        $this->internalCache->get($key, Argument::any(), 0, Argument::any())
+            ->willReturn($value)
+            ->shouldBeCalledOnce();
 
-        $this->staleCache->get($key, Argument::cetera())
-            ->shouldNotBeCalled();
-
-        $result = $this->testedInstance->get($key, $callback, $beta);
+        $metadata = [];
+        $result = $this->testedInstance->get($key, $callback, $beta, $metadata);
         self::assertEquals($value, $result);
     }
 
@@ -114,10 +111,6 @@ class StaleTest extends TestCase
             ->willThrow($exception);
 
         $this->eventDispatcher->dispatch(Argument::that(fn($event) => $event instanceof StaleCacheUsage))
-            ->shouldBeCalledOnce();
-
-        $this->staleCache->get($key, Argument::any(), 0, Argument::any())
-            ->willReturn($value)
             ->shouldBeCalledOnce();
 
         $result = $this->testedInstance->get($key, $callback, $beta);
@@ -142,9 +135,6 @@ class StaleTest extends TestCase
         $this->eventDispatcher->dispatch(Argument::that(fn($event) => $event instanceof StaleCacheUsage))
             ->shouldBeCalledOnce();
 
-        $this->staleCache->get($key, Argument::any(), 0, Argument::any())
-            ->shouldBeCalledOnce()
-            ->willThrow($exception);
 
         $this->testedInstance->get($key, $callback, $beta);
     }
