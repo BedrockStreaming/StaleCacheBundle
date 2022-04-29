@@ -13,7 +13,10 @@ class BedrockStaleCacheExtension extends Extension
 {
     public const CONFIG_ROOT_KEY = 'bedrock_stale_cache';
 
-    public function load(array $configs, ContainerBuilder $container)
+    /**
+     * @param array<string, mixed> $configs
+     */
+    public function load(array $configs, ContainerBuilder $container): void
     {
         dump(__METHOD__);
         $processedConfig = $this->processConfiguration(new Configuration(), $configs);
@@ -23,7 +26,10 @@ class BedrockStaleCacheExtension extends Extension
         }
     }
 
-    private function configureStaleCacheService(ContainerBuilder $container, string $id, array $options)
+    /**
+     * @param array<string, mixed> $options
+     */
+    private function configureStaleCacheService(ContainerBuilder $container, string $id, array $options): void
     {
         dump(__METHOD__);
         dump($id);

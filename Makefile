@@ -26,7 +26,7 @@ quality: cs-ci phpstan
 quality-fix: cs-fix
 
 .PHONY: test
-test: atoum
+test: cs phpunit phpstan
 
 # Coding Style
 
@@ -64,10 +64,10 @@ tool-ci-%: ${CI_DIR}
 	make -e SOURCE_DIR=${SOURCE_DIR} -e CI_DIR=${CI_DIR} -f ${CI_DIR}/Makefile $@
 
 # TEST
-.PHONY: atoum
-atoum:
-	$(call printSection,TEST atoum)
-	${BIN_DIR}/atoum
+.PHONY: phpunit
+phpunit:
+	$(call printSection,TEST phpunit)
+	${BIN_DIR}/phpunit
 
 .PHONY: phpstan
 phpstan:

@@ -33,22 +33,26 @@ class Stale implements TagAwareCacheInterface
     /**
      * @param array<string,mixed>|null $metadata
      */
-    public function get(string $key, callable $callback, float $beta = null, array &$metadata = null)
+    public function get(string $key, callable $callback, float $beta = null, array &$metadata = null): mixed
     {
         $isHit = true;
 
         $callbackWithIncreasedCacheTime = function (ItemInterface $item, bool &$save) use ($callback, &$isHit) {
             $value = $callback($item, $save);
-
-            $this->increaseCacheLifetime($item);
             $isHit = false;
+
+            if ($item instanceof CacheItem) {
+                $this->increaseCacheLifetime($item);
+            }
 
             return $value;
         };
 
-        // $beta = \INF to disable early recompute
+        // $beta = 0 to disable early recompute
         $value = $this->internalCache->get($key, $callbackWithIncreasedCacheTime, 0, $metadata);
 
+        // If value is cached and we're in stale mode, try to force recomputing it
+        // Ignore correctly marked exceptions: this is where the stale mode should work as a fallback
         if ($isHit && $this->isStale($metadata)) {
             try {
                 // $beta = \INF to force an early recompute
@@ -75,7 +79,7 @@ class Stale implements TagAwareCacheInterface
         return true;
     }
 
-    private function increaseCacheLifetime(ItemInterface $item): void
+    private function increaseCacheLifetime(CacheItem $item): void
     {
         // Please to not judge me, this kind of dark magic comes straight out of Symfony
         $callback = \Closure::bind(static function (CacheItem $item, int $maxStale) {
@@ -87,15 +91,16 @@ class Stale implements TagAwareCacheInterface
         $callback($item, $this->maxStale);
     }
 
+    /**
+     * @param ?array{"expiry"?: ?int} $metadata
+     */
     private function isStale(?array $metadata): bool
     {
-        if ($metadata === null || !isset($metadata[ItemInterface::METADATA_EXPIRY]) || $metadata[ItemInterface::METADATA_EXPIRY] === null) {
+        $currentExpiry = $metadata[ItemInterface::METADATA_EXPIRY] ?? null;
+        if ($currentExpiry === null) {
             return false;
         }
 
-        $currentExpiry = $metadata[ItemInterface::METADATA_EXPIRY];
-        $staleStartsAt = $currentExpiry - $this->maxStale;
-
-        return $staleStartsAt < microtime(true);
+        return ($currentExpiry - $this->maxStale) < microtime(true);
     }
 }

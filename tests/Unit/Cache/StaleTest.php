@@ -8,17 +8,18 @@ use Bedrock\StaleCacheBundle\Tests\Mock\UnavailableResourceExceptionMock;
 use PHPUnit\Framework\TestCase;
 use Prophecy\Argument;
 use Prophecy\PhpUnit\ProphecyTrait;
+use Prophecy\Prophecy\ObjectProphecy;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Cache\CacheItem;
-use Symfony\Contracts\Cache\ItemInterface;
+use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\TagAwareCacheInterface;
 
 class StaleTest extends TestCase
 {
    use ProphecyTrait;
 
-    private $internalCache;
-    private $eventDispatcher;
+    private ObjectProphecy|CacheInterface $internalCache;
+    private ObjectProphecy|EventDispatcherInterface $eventDispatcher;
     private Stale $testedInstance;
 
     public function setUp(): void
@@ -33,7 +34,7 @@ class StaleTest extends TestCase
         );
     }
 
-    public function testGetNewItem()
+    public function testGetNewItem(): void
     {
         $key = uniqid('key_', true);
         $value = uniqid('value_', true);
@@ -44,12 +45,11 @@ class StaleTest extends TestCase
             $item = new CacheItem();
             $save = true;
 
-            $test= $value === $passedCallback($item, $save);
-
-            return $test;
+            return $value === $passedCallback($item, $save);
         };
 
-        $this->internalCache->get($key, Argument::that($assertCallbackReturnsValue),  Argument::any(), Argument::any())
+        $metadataArgument = Argument::any();
+        $this->internalCache->get($key, Argument::that($assertCallbackReturnsValue), Argument::any(), $metadataArgument)
             ->willReturn($value)
             ->shouldBeCalledOnce();
 
@@ -58,7 +58,7 @@ class StaleTest extends TestCase
         self::assertEquals($value, $result);
     }
 
-    public function testGetNewItemWithoutSave()
+    public function testGetNewItemWithoutSave(): void
     {
         $key = uniqid('key_', true);
         $value = uniqid('value_', true);
@@ -72,7 +72,8 @@ class StaleTest extends TestCase
             return $value === $passedCallback($item, $save);
         };
 
-        $this->internalCache->get($key, Argument::that($assertCallbackReturnsValue),  Argument::any(), Argument::any())
+        $metadataArgument = Argument::any();
+        $this->internalCache->get($key, Argument::that($assertCallbackReturnsValue),  Argument::any(), $metadataArgument)
             ->willReturn($value)
             ->shouldBeCalledOnce();
 
@@ -81,14 +82,15 @@ class StaleTest extends TestCase
         self::assertEquals($value, $result);
     }
 
-    public function testGetExistingItem()
+    public function testGetExistingItem(): void
     {
         $key = uniqid('key_', true);
         $value = uniqid('value_', true);
         $callback = fn () => self::fail('This callback should not be called');
         $beta = (float) rand(1, 10);
 
-        $this->internalCache->get($key, Argument::any(), 0, Argument::any())
+        $metadataArgument = Argument::any();
+        $this->internalCache->get($key, Argument::any(), 0, $metadataArgument)
             ->willReturn($value)
             ->shouldBeCalledOnce();
 
@@ -100,7 +102,7 @@ class StaleTest extends TestCase
     /**
      * @dataProvider provideSupportedInternalCacheException
      */
-    public function testGetStaleItemHit($exception)
+    public function testGetStaleItemHit(string $exception): void
     {
         $key = uniqid('key_', true);
         $value = uniqid('value_', true);
@@ -120,7 +122,7 @@ class StaleTest extends TestCase
     /**
      * @dataProvider provideSupportedInternalCacheException
      */
-    public function testGetStaleItemMiss($exception)
+    public function testGetStaleItemMiss(string $exception): void
     {
         $this->expectException($exception);
 
@@ -146,7 +148,7 @@ class StaleTest extends TestCase
         ];
     }
 
-    public function testDelete()
+    public function testDelete(): void
     {
         $key = uniqid('key_', true);
         $success = true;
@@ -159,7 +161,7 @@ class StaleTest extends TestCase
         self::assertEquals($success, $result);
     }
 
-    public function testInvalidateTags()
+    public function testInvalidateTags(): void
     {
         $tags = [uniqid('tag_', true)];
         $success = true;
