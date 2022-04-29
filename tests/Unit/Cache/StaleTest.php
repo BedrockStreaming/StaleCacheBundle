@@ -13,7 +13,6 @@ use Prophecy\PhpUnit\ProphecyTrait;
 use Prophecy\Prophecy\ObjectProphecy;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Cache\CacheItem;
-use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
 use Symfony\Contracts\Cache\TagAwareCacheInterface;
 
@@ -22,8 +21,13 @@ class StaleTest extends TestCase
     use ProphecyTrait;
 
     private const DEFAULT_MAX_STALE = 1800;
-    private ObjectProphecy|CacheInterface $internalCache;
-    private ObjectProphecy|EventDispatcherInterface $eventDispatcher;
+
+    /** @var ObjectProphecy|TagAwareCacheInterface */
+    private ObjectProphecy $internalCache;
+
+    /** @var ObjectProphecy|EventDispatcherInterface */
+    private ObjectProphecy $eventDispatcher;
+
     private Stale $testedInstance;
 
     public function setUp(): void
@@ -41,7 +45,7 @@ class StaleTest extends TestCase
     /**
      * @dataProvider provideValidCallback
      */
-    public function testGetNewItem(mixed $value, callable $callback): void
+    public function testGetNewItem($value, callable $callback): void
     {
         $key = uniqid('key_', true);
         $beta = (float) rand(1, 10);
@@ -75,7 +79,7 @@ class StaleTest extends TestCase
     /**
      * @dataProvider provideValidCallback
      */
-    public function testGetItemHitAndForceRefresh(mixed $newValue, callable $callback)
+    public function testGetItemHitAndForceRefresh($newValue, callable $callback)
     {
         $key = uniqid('key_', true);
         $oldValue = uniqid('old_value_', true);
@@ -109,7 +113,7 @@ class StaleTest extends TestCase
         self::assertCacheItemExpiryEquals($initialExpiryAsFloat + self::DEFAULT_MAX_STALE, $cacheItem);
     }
 
-    protected function provideValidCallback(): iterable
+    public function provideValidCallback(): iterable
     {
         $value = uniqid('value_', true);
 
@@ -133,7 +137,9 @@ class StaleTest extends TestCase
     {
         $key = uniqid('key_', true);
         $value = uniqid('value_', true);
-        $callback = fn () => throw new UnavailableResourceExceptionMock();
+        $callback = function () {
+            throw new UnavailableResourceExceptionMock();
+        };
         $beta = (float) rand(1, 10);
         $initialExpiry = \DateTimeImmutable::createFromFormat('U.u', (string) microtime(true))
             ->modify('+1 hour');
@@ -189,7 +195,7 @@ class StaleTest extends TestCase
         self::assertEquals($value, $result);
     }
 
-    protected function provideMetadataNotInStale(): iterable
+    public function provideMetadataNotInStale(): iterable
     {
         yield 'no expiration' => [
             'metadata' => [],
@@ -203,7 +209,9 @@ class StaleTest extends TestCase
     public function testGetItemMissWithFailingCallback(): void
     {
         $key = uniqid('key_', true);
-        $callback = fn () => throw new UnavailableResourceExceptionMock();
+        $callback = function () {
+            throw new UnavailableResourceExceptionMock();
+        };
         $beta = (float) rand(1, 10);
 
         $metadataArgument = Argument::any();

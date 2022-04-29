@@ -26,7 +26,7 @@ quality: cs-ci phpstan
 quality-fix: cs-fix
 
 .PHONY: test
-test: cs phpunit phpstan
+test: cs phpstan phpunit
 
 # Coding Style
 
