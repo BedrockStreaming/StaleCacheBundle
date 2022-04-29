@@ -13,6 +13,9 @@
       "Bedrock\\StaleCacheBundle\\Tests\\": "tests/"
     }
   },
+  "config": {
+    "bin-dir": "bin/"
+  },
   "authors": [
     {
       "name": "Valentin Clavreul",
@@ -21,15 +24,16 @@
   ],
   "require": {
     "php": "^7.4|^8.0",
-    "symfony/dependency-injection": "^4.4 || ^5.4",
-    "symfony/http-kernel": "^4.4 || ^5.4",
-    "symfony/cache-contracts": "^1.0 || ^2.0",
-    "symfony/cache": "^4.4 || ^5.4",
-    "symfony/config": "^4.4 || ^5.4"
+    "symfony/dependency-injection": "^4.4 || ^5.4 || ^6.0" ,
+    "symfony/http-kernel": "^4.4 || ^5.4 || ^6.0",
+    "symfony/cache-contracts": "^1.0 || ^2.0 || ^3.0",
+    "symfony/cache": "^4.4 || ^5.4 || ^6.0",
+    "symfony/config": "^4.4 || ^5.4 || ^6.0"
   },
   "require-dev": {
-    "symfony/var-dumper": "^4.4 || ^5.4",
+    "symfony/var-dumper": "^4.4 || ^5.4 || ^6.0",
     "phpunit/phpunit": "^9.5",
-    "phpspec/prophecy-phpunit": "^2.0"
+    "phpspec/prophecy-phpunit": "^2.0",
+    "m6web/php-cs-fixer-config": "^2.0"
   }
 }

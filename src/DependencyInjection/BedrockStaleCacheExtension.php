@@ -1,10 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Bedrock\StaleCacheBundle\DependencyInjection;
 
 use Bedrock\StaleCacheBundle\Cache\Stale;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
-use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Extension\Extension;
 use Symfony\Component\DependencyInjection\Reference;
 
@@ -15,14 +16,11 @@ class BedrockStaleCacheExtension extends Extension
     public function load(array $configs, ContainerBuilder $container)
     {
         dump(__METHOD__);
-        $processedConfig = $this->processConfiguration(new Configuration(),$configs);
+        $processedConfig = $this->processConfiguration(new Configuration(), $configs);
 
         foreach ($processedConfig['decorated_services'] as $id => $options) {
             $this->configureStaleCacheService($container, $id, $options);
         }
-
-
-
     }
 
     private function configureStaleCacheService(ContainerBuilder $container, string $id, array $options)
@@ -38,5 +36,4 @@ class BedrockStaleCacheExtension extends Extension
         $definition->setAutowired(true);
         $definition->setDecoratedService($id, $id.'.inner_stale');
     }
-
 }

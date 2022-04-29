@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Bedrock\StaleCacheBundle\Cache;
 
 use Bedrock\StaleCacheBundle\Event\StaleCacheUsage;
@@ -35,7 +37,7 @@ class Stale implements TagAwareCacheInterface
     {
         $isHit = true;
 
-        $callbackWithIncreasedCacheTime = function (ItemInterface $item, bool &$save) use ($key, $callback, &$isHit) {
+        $callbackWithIncreasedCacheTime = function (ItemInterface $item, bool &$save) use ($callback, &$isHit) {
             $value = $callback($item, $save);
 
             $this->increaseCacheLifetime($item);
@@ -73,7 +75,7 @@ class Stale implements TagAwareCacheInterface
         return true;
     }
 
-    private function increaseCacheLifetime(ItemInterface $item)
+    private function increaseCacheLifetime(ItemInterface $item): void
     {
         // Please to not judge me, this kind of dark magic comes straight out of Symfony
         $callback = \Closure::bind(static function (CacheItem $item, int $maxStale) {

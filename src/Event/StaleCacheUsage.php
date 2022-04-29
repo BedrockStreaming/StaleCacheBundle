@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Bedrock\StaleCacheBundle\Event;
 
 use Bedrock\StaleCacheBundle\Exception\UnavailableResourceException;
