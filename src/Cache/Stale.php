@@ -56,7 +56,7 @@ class Stale implements TagAwareCacheInterface
         if ($isHit && $this->isStale($metadata)) {
             try {
                 // $beta = \INF to force an early recompute
-                $value = $this->internalCache->get($key, $callback, \INF, $metadata);
+                $value = $this->internalCache->get($key, $callbackWithIncreasedCacheTime, \INF, $metadata);
             } catch (UnavailableResourceException $exception) {
                 $this->dispatcher->dispatch(new StaleCacheUsage($exception));
             }

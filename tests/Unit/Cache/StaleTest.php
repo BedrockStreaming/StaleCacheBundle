@@ -51,15 +51,13 @@ class StaleTest extends TestCase
         $cacheItem->expiresAt($initialExpiry);
         $initialExpiryAsFloat = (float) $initialExpiry->format('U.u');
 
-        $assertCallbackReturnsValue = function (callable $passedCallback) use ($cacheItem, $value) {
-            $save = true;
-
-            return $value === $passedCallback($cacheItem, $save);
-        };
-
         $metadataArgument = Argument::any();
-        $this->internalCache->get($key, Argument::that($assertCallbackReturnsValue), 0, $metadataArgument)
-            ->willReturn($value)
+        $this->internalCache->get($key, Argument::any(), 0, $metadataArgument)
+            ->will(function ($args) use ($cacheItem) {
+                $save = true;
+
+                return $args[1]($cacheItem, $save);
+            })
             ->shouldBeCalledOnce();
 
         $this->internalCache->get($key, Argument::any(), \INF, $metadataArgument)
@@ -71,11 +69,44 @@ class StaleTest extends TestCase
         $metadata = [];
         $result = $this->testedInstance->get($key, $callback, $beta, $metadata);
         self::assertEquals($value, $result);
+        self::assertCacheItemExpiryEquals($initialExpiryAsFloat + self::DEFAULT_MAX_STALE, $cacheItem);
+    }
 
-        $newExpiry = (\Closure::bind(function (CacheItem $item) {
-            return $item->expiry;
-        }, null, CacheItem::class))($cacheItem);
-        self::assertEquals($initialExpiryAsFloat + self::DEFAULT_MAX_STALE, $newExpiry);
+    /**
+     * @dataProvider provideValidCallback
+     */
+    public function testGetItemHitAndForceRefresh(mixed $newValue, callable $callback)
+    {
+        $key = uniqid('key_', true);
+        $oldValue = uniqid('old_value_', true);
+        $beta = (float) rand(1, 10);
+        $initialExpiry = \DateTimeImmutable::createFromFormat('U.u', (string) microtime(true))
+            ->modify('+1 hour');
+        $cacheItem = new CacheItem();
+        $cacheItem->expiresAt($initialExpiry);
+        $initialExpiryAsFloat = (float) $initialExpiry->format('U.u');
+
+        $metadataArgument = Argument::any();
+        $this->internalCache->get($key, Argument::any(), 0, $metadataArgument)
+            ->willReturn($oldValue);
+
+        $this->internalCache->get($key, Argument::any(), \INF, $metadataArgument)
+            ->will(function ($args) use ($cacheItem) {
+                $save = true;
+
+                return $args[1]($cacheItem, $save);
+            })
+            ->shouldBeCalledOnce();
+
+        $this->eventDispatcher->dispatch(Argument::that(fn ($event) => $event instanceof StaleCacheUsage))
+            ->shouldNotBeCalled();
+
+        // Item is in cache, but in stale mode
+        // We force refreshing the value, getting a new one
+        $metadata = [ItemInterface::METADATA_EXPIRY => microtime(true) + self::DEFAULT_MAX_STALE / 2];
+        $result = $this->testedInstance->get($key, $callback, $beta, $metadata);
+        self::assertEquals($newValue, $result);
+        self::assertCacheItemExpiryEquals($initialExpiryAsFloat + self::DEFAULT_MAX_STALE, $cacheItem);
     }
 
     protected function provideValidCallback(): iterable
@@ -104,6 +135,11 @@ class StaleTest extends TestCase
         $value = uniqid('value_', true);
         $callback = fn () => throw new UnavailableResourceExceptionMock();
         $beta = (float) rand(1, 10);
+        $initialExpiry = \DateTimeImmutable::createFromFormat('U.u', (string) microtime(true))
+            ->modify('+1 hour');
+        $cacheItem = new CacheItem();
+        $cacheItem->expiresAt($initialExpiry);
+        $initialExpiryAsFloat = (float) $initialExpiry->format('U.u');
 
         $metadataArgument = Argument::any();
         $this->internalCache->get($key, Argument::any(), 0, $metadataArgument)
@@ -111,15 +147,21 @@ class StaleTest extends TestCase
 
         $this->internalCache->get($key, Argument::any(), \INF, $metadataArgument)
             ->shouldBeCalledOnce()
-            ->will($callback);
+            ->will(function ($args) use ($cacheItem) {
+                $save = true;
+
+                return $args[1]($cacheItem, $save);
+            });
 
         $this->eventDispatcher->dispatch(Argument::that(fn ($event) => $event instanceof StaleCacheUsage))
             ->shouldBeCalledOnce();
 
         // Item is in cache, but in stale mode
+        // Value cannot be refreshed due to failing source
         $metadata = [ItemInterface::METADATA_EXPIRY => microtime(true) + self::DEFAULT_MAX_STALE / 2];
         $result = $this->testedInstance->get($key, $callback, $beta, $metadata);
         self::assertEquals($value, $result);
+        self::assertCacheItemExpiryEquals($initialExpiryAsFloat, $cacheItem);
     }
 
     /**
@@ -129,7 +171,7 @@ class StaleTest extends TestCase
     {
         $key = uniqid('key_', true);
         $value = uniqid('value_', true);
-        $callback = fn () => self::fail('This callback should not be called');
+        $callback = fn () => self::fail('The passed callback should not be called');
         $beta = (float) rand(1, 10);
 
         $metadataArgument = Argument::any();
@@ -137,7 +179,8 @@ class StaleTest extends TestCase
             ->willReturn($value);
 
         $this->internalCache->get($key, Argument::any(), \INF, $metadataArgument)
-            ->shouldNotBeCalled();
+            ->shouldNotBeCalled()
+            ->willReturn($value); // To avoid type errors if it's actually called
 
         $this->eventDispatcher->dispatch(Argument::that(fn ($event) => $event instanceof StaleCacheUsage))
             ->shouldNotBeCalled();
@@ -159,15 +202,17 @@ class StaleTest extends TestCase
 
     public function testGetItemMissWithFailingCallback(): void
     {
-        $this->expectException(UnavailableResourceExceptionMock::class);
-
         $key = uniqid('key_', true);
         $callback = fn () => throw new UnavailableResourceExceptionMock();
         $beta = (float) rand(1, 10);
 
         $metadataArgument = Argument::any();
         $this->internalCache->get($key, Argument::any(), 0, $metadataArgument)
-            ->will($callback);
+            ->will(function ($args) {
+                $save = true;
+
+                return $args[1](new CacheItem(), $save);
+            });
 
         $this->internalCache->get($key, Argument::any(), \INF, $metadataArgument)
             ->shouldNotBeCalled();
@@ -176,6 +221,7 @@ class StaleTest extends TestCase
             ->shouldNotBeCalled();
 
         $metadata = [];
+        $this->expectException(UnavailableResourceExceptionMock::class);
         $this->testedInstance->get($key, $callback, $beta, $metadata);
     }
 
@@ -203,5 +249,13 @@ class StaleTest extends TestCase
 
         $result = $this->testedInstance->invalidateTags($tags);
         self::assertEquals($success, $result);
+    }
+
+    private static function assertCacheItemExpiryEquals(float $expiry, CacheItem $cacheItem)
+    {
+        $cacheItemExpiry = (\Closure::bind(function (CacheItem $item) {
+            return $item->expiry;
+        }, null, CacheItem::class))($cacheItem);
+        self::assertEquals($expiry, $cacheItemExpiry);
     }
 }
