@@ -45,11 +45,16 @@ class StaleTest extends TestCase
     {
         $key = uniqid('key_', true);
         $beta = (float) rand(1, 10);
+        $initialExpiry = \DateTimeImmutable::createFromFormat('U.u', (string) microtime(true))
+            ->modify('+1 hour');
+        $cacheItem = new CacheItem();
+        $cacheItem->expiresAt($initialExpiry);
+        $initialExpiryAsFloat = (float) $initialExpiry->format('U.u');
 
-        $assertCallbackReturnsValue = function (callable $passedCallback) use ($value) {
+        $assertCallbackReturnsValue = function (callable $passedCallback) use ($cacheItem, $value) {
             $save = true;
 
-            return $value === $passedCallback(new CacheItem(), $save);
+            return $value === $passedCallback($cacheItem, $save);
         };
 
         $metadataArgument = Argument::any();
@@ -66,6 +71,11 @@ class StaleTest extends TestCase
         $metadata = [];
         $result = $this->testedInstance->get($key, $callback, $beta, $metadata);
         self::assertEquals($value, $result);
+
+        $newExpiry = (\Closure::bind(function (CacheItem $item) {
+            return $item->expiry;
+        }, null, CacheItem::class))($cacheItem);
+        self::assertEquals($initialExpiryAsFloat + self::DEFAULT_MAX_STALE, $newExpiry);
     }
 
     protected function provideValidCallback(): iterable
