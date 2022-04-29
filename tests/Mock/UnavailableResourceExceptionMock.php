@@ -1,9 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Bedrock\StaleCacheBundle\Tests\Mock;
 
 use Bedrock\StaleCacheBundle\Exception\UnavailableResourceException;
-use Throwable;
 
 class UnavailableResourceExceptionMock extends \Exception implements UnavailableResourceException
 {

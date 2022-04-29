@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Bedrock\StaleCacheBundle\Tests\Unit\Cache;
 
 use Bedrock\StaleCacheBundle\Cache\Stale;
@@ -12,12 +14,14 @@ use Prophecy\Prophecy\ObjectProphecy;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Cache\CacheItem;
 use Symfony\Contracts\Cache\CacheInterface;
+use Symfony\Contracts\Cache\ItemInterface;
 use Symfony\Contracts\Cache\TagAwareCacheInterface;
 
 class StaleTest extends TestCase
 {
-   use ProphecyTrait;
+    use ProphecyTrait;
 
+    private const DEFAULT_MAX_STALE = 1800;
     private ObjectProphecy|CacheInterface $internalCache;
     private ObjectProphecy|EventDispatcherInterface $eventDispatcher;
     private Stale $testedInstance;
@@ -30,59 +34,88 @@ class StaleTest extends TestCase
         $this->testedInstance = new Stale(
             $this->internalCache->reveal(),
             $this->eventDispatcher->reveal(),
-            1800
+            self::DEFAULT_MAX_STALE
         );
     }
 
-    public function testGetNewItem(): void
+    /**
+     * @dataProvider provideValidCallback
+     */
+    public function testGetNewItem(mixed $value, callable $callback): void
     {
         $key = uniqid('key_', true);
-        $value = uniqid('value_', true);
-        $callback = fn () => $value;
         $beta = (float) rand(1, 10);
 
         $assertCallbackReturnsValue = function (callable $passedCallback) use ($value) {
-            $item = new CacheItem();
             $save = true;
 
-            return $value === $passedCallback($item, $save);
+            return $value === $passedCallback(new CacheItem(), $save);
         };
 
         $metadataArgument = Argument::any();
-        $this->internalCache->get($key, Argument::that($assertCallbackReturnsValue), Argument::any(), $metadataArgument)
+        $this->internalCache->get($key, Argument::that($assertCallbackReturnsValue), 0, $metadataArgument)
             ->willReturn($value)
             ->shouldBeCalledOnce();
+
+        $this->internalCache->get($key, Argument::any(), \INF, $metadataArgument)
+            ->shouldNotBeCalled();
+
+        $this->eventDispatcher->dispatch(Argument::that(fn ($event) => $event instanceof StaleCacheUsage))
+            ->shouldNotBeCalled();
 
         $metadata = [];
         $result = $this->testedInstance->get($key, $callback, $beta, $metadata);
         self::assertEquals($value, $result);
     }
 
-    public function testGetNewItemWithoutSave(): void
+    protected function provideValidCallback(): iterable
+    {
+        $value = uniqid('value_', true);
+
+        yield 'basic callback' => [
+            'value' => $value,
+            'callback' => fn () => $value,
+        ];
+
+        yield 'callback using cache item' => [
+            'value' => $value,
+            'callback' => fn (ItemInterface $item) => $value,
+        ];
+
+        yield 'callback using cache item and save boolean' => [
+            'value' => $value,
+            'callback' => fn (ItemInterface $item, bool & $save) => $value,
+        ];
+    }
+
+    public function testGetItemHitWithFallback(): void
     {
         $key = uniqid('key_', true);
         $value = uniqid('value_', true);
-        $callback = fn () => $value;
+        $callback = fn () => throw new UnavailableResourceExceptionMock();
         $beta = (float) rand(1, 10);
 
-        $assertCallbackReturnsValue = function (callable $passedCallback) use ($value) {
-            $item = new CacheItem();
-            $save = false;
-
-            return $value === $passedCallback($item, $save);
-        };
-
         $metadataArgument = Argument::any();
-        $this->internalCache->get($key, Argument::that($assertCallbackReturnsValue),  Argument::any(), $metadataArgument)
-            ->willReturn($value)
+        $this->internalCache->get($key, Argument::any(), 0, $metadataArgument)
+            ->willReturn($value);
+
+        $this->internalCache->get($key, Argument::any(), \INF, $metadataArgument)
+            ->shouldBeCalledOnce()
+            ->will($callback);
+
+        $this->eventDispatcher->dispatch(Argument::that(fn ($event) => $event instanceof StaleCacheUsage))
             ->shouldBeCalledOnce();
 
-        $metadata = [];
+        // Item is in cache, but in stale mode
+        $metadata = [ItemInterface::METADATA_EXPIRY => microtime(true) + self::DEFAULT_MAX_STALE / 2];
         $result = $this->testedInstance->get($key, $callback, $beta, $metadata);
         self::assertEquals($value, $result);
     }
 
-    public function testGetExistingItem(): void
+    /**
+     * @dataProvider provideMetadataNotInStale
+     */
+    public function testGetItemHitWithoutFallback(array $metadata): void
     {
         $key = uniqid('key_', true);
         $value = uniqid('value_', true);
@@ -91,61 +124,49 @@ class StaleTest extends TestCase
 
         $metadataArgument = Argument::any();
         $this->internalCache->get($key, Argument::any(), 0, $metadataArgument)
-            ->willReturn($value)
-            ->shouldBeCalledOnce();
+            ->willReturn($value);
 
-        $metadata = [];
+        $this->internalCache->get($key, Argument::any(), \INF, $metadataArgument)
+            ->shouldNotBeCalled();
+
+        $this->eventDispatcher->dispatch(Argument::that(fn ($event) => $event instanceof StaleCacheUsage))
+            ->shouldNotBeCalled();
+
         $result = $this->testedInstance->get($key, $callback, $beta, $metadata);
         self::assertEquals($value, $result);
     }
 
-    /**
-     * @dataProvider provideSupportedInternalCacheException
-     */
-    public function testGetStaleItemHit(string $exception): void
+    protected function provideMetadataNotInStale(): iterable
     {
-        $key = uniqid('key_', true);
-        $value = uniqid('value_', true);
-        $callback = fn () => $value;
-        $beta = (float) rand(1, 10);
-
-        $this->internalCache->get($key, Argument::cetera())
-            ->willThrow($exception);
-
-        $this->eventDispatcher->dispatch(Argument::that(fn($event) => $event instanceof StaleCacheUsage))
-            ->shouldBeCalledOnce();
-
-        $result = $this->testedInstance->get($key, $callback, $beta);
-        self::assertEquals($value, $result);
-    }
-
-    /**
-     * @dataProvider provideSupportedInternalCacheException
-     */
-    public function testGetStaleItemMiss(string $exception): void
-    {
-        $this->expectException($exception);
-
-        $key = uniqid('key_', true);
-        $value = uniqid('value_', true);
-        $callback = fn () => $value;
-        $beta = (float) rand(1, 10);
-
-        $this->internalCache->get($key, Argument::cetera())
-            ->willThrow($exception);
-
-        $this->eventDispatcher->dispatch(Argument::that(fn($event) => $event instanceof StaleCacheUsage))
-            ->shouldBeCalledOnce();
-
-
-        $this->testedInstance->get($key, $callback, $beta);
-    }
-
-    public function provideSupportedInternalCacheException(): \Iterator
-    {
-        yield 'UnavailableResourceException' => [
-            'exception_class' => UnavailableResourceExceptionMock::class,
+        yield 'no expiration' => [
+            'metadata' => [],
         ];
+
+        yield 'future expiration but not yet stale' => [
+            'metadata' => [ItemInterface::METADATA_EXPIRY => microtime(true) + self::DEFAULT_MAX_STALE * 2],
+        ];
+    }
+
+    public function testGetItemMissWithFailingCallback(): void
+    {
+        $this->expectException(UnavailableResourceExceptionMock::class);
+
+        $key = uniqid('key_', true);
+        $callback = fn () => throw new UnavailableResourceExceptionMock();
+        $beta = (float) rand(1, 10);
+
+        $metadataArgument = Argument::any();
+        $this->internalCache->get($key, Argument::any(), 0, $metadataArgument)
+            ->will($callback);
+
+        $this->internalCache->get($key, Argument::any(), \INF, $metadataArgument)
+            ->shouldNotBeCalled();
+
+        $this->eventDispatcher->dispatch(Argument::that(fn ($event) => $event instanceof StaleCacheUsage))
+            ->shouldNotBeCalled();
+
+        $metadata = [];
+        $this->testedInstance->get($key, $callback, $beta, $metadata);
     }
 
     public function testDelete(): void

@@ -2,6 +2,7 @@ parameters:
     level: 7
     paths:
         - src
+        - tests/Mock
 
     excludePaths:
         - src/DependencyInjection/Configuration.php
