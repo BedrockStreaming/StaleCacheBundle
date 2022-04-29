@@ -15,26 +15,14 @@ use Symfony\Contracts\Cache\TagAwareCacheInterface;
 
 class Stale implements TagAwareCacheInterface
 {
-    private CacheInterface $internalCache;
-
-    private EventDispatcherInterface $dispatcher;
-
-    private int $maxStale;
-
-    private ?LoggerInterface $logger;
-
     private ?int $defaultLifetime = null;
 
     public function __construct(
-        CacheInterface $internalCache,
-        EventDispatcherInterface $dispatcher,
-        int $maxStale,
-        ?LoggerInterface $logger = null
+        private CacheInterface $internalCache,
+        private EventDispatcherInterface $dispatcher,
+        private int $maxStale,
+        private ?LoggerInterface $logger = null
     ) {
-        $this->internalCache = $internalCache;
-        $this->dispatcher = $dispatcher;
-        $this->maxStale = $maxStale;
-        $this->logger = $logger;
     }
 
     /**

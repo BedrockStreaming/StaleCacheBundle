@@ -14,7 +14,6 @@ use Prophecy\Prophecy\ObjectProphecy;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Cache\CacheItem;
-use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
 use Symfony\Contracts\Cache\TagAwareCacheInterface;
 
@@ -53,7 +52,7 @@ class StaleTest extends TestCase
     public function testGetNewItem(mixed $value, callable $callback): void
     {
         $key = uniqid('key_', true);
-        $beta = (float) rand(1, 10);
+        $beta = (float) random_int(1, 10);
         $initialExpiry = \DateTimeImmutable::createFromFormat('U.u', (string) microtime(true))
             ->modify('+1 hour');
         $cacheItem = new CacheItem();
@@ -92,7 +91,7 @@ class StaleTest extends TestCase
     {
         $key = uniqid('key_', true);
         $oldValue = uniqid('old_value_', true);
-        $beta = (float) rand(1, 10);
+        $beta = (float) random_int(1, 10);
         $initialExpiry = \DateTimeImmutable::createFromFormat('U.u', (string) microtime(true))
             ->modify('+1 hour');
         $cacheItem = new CacheItem();
@@ -154,7 +153,7 @@ class StaleTest extends TestCase
         $key = uniqid('key_', true);
         $value = uniqid('value_', true);
         $callback = fn () => throw new UnavailableResourceExceptionMock(true);
-        $beta = (float) rand(1, 10);
+        $beta = (float) random_int(1, 10);
         $initialExpiry = \DateTimeImmutable::createFromFormat('U.u', (string) microtime(true))
             ->modify('+1 hour');
         $cacheItem = new CacheItem();
@@ -195,7 +194,7 @@ class StaleTest extends TestCase
     {
         $key = uniqid('key_', true);
         $value = uniqid('value_', true);
-        $beta = (float) rand(1, 10);
+        $beta = (float) random_int(1, 10);
         $initialExpiry = \DateTimeImmutable::createFromFormat('U.u', (string) microtime(true))
             ->modify('+1 hour');
         $cacheItem = new CacheItem();
@@ -284,7 +283,7 @@ class StaleTest extends TestCase
         $key = uniqid('key_', true);
         $value = uniqid('value_', true);
         $callback = fn () => self::fail('The passed callback should not be called');
-        $beta = (float) rand(1, 10);
+        $beta = (float) random_int(1, 10);
 
         $metadataArgument = Argument::any();
         $this->internalCache->get($key, Argument::any(), 0, $metadataArgument)
@@ -321,7 +320,7 @@ class StaleTest extends TestCase
     {
         $key = uniqid('key_', true);
         $callback = fn () => throw new UnavailableResourceExceptionMock(true);
-        $beta = (float) rand(1, 10);
+        $beta = (float) random_int(1, 10);
 
         $metadataArgument = Argument::any();
         $this->internalCache->get($key, Argument::any(), 0, $metadataArgument)
