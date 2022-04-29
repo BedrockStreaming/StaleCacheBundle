@@ -76,7 +76,7 @@ class Stale implements TagAwareCacheInterface
             return $this->internalCache->invalidateTags($tags);
         }
 
-        return true;
+        return false;
     }
 
     private function increaseCacheLifetime(CacheItem $item): void
