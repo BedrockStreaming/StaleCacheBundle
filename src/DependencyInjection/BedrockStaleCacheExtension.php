@@ -18,7 +18,6 @@ class BedrockStaleCacheExtension extends Extension
      */
     public function load(array $configs, ContainerBuilder $container): void
     {
-        dump(__METHOD__);
         $processedConfig = $this->processConfiguration(new Configuration(), $configs);
 
         foreach ($processedConfig['decorated_services'] as $id => $options) {
@@ -31,15 +30,10 @@ class BedrockStaleCacheExtension extends Extension
      */
     private function configureStaleCacheService(ContainerBuilder $container, string $id, array $options): void
     {
-        dump(__METHOD__);
-        dump($id);
-        dump($options);
-
         $definition = $container->register($id.'.stale', Stale::class);
-        $definition->setArgument('$staleCache', new Reference($id.'.inner_stale'));
-        $definition->setArgument('$internalCache', new Reference($id.'.inner_stale'));
+        $definition->setArgument('$internalCache', new Reference($id));
+        $definition->setArgument('$maxStale', $options['max_stale']);
         $definition->setAutoconfigured(true);
         $definition->setAutowired(true);
-        $definition->setDecoratedService($id, $id.'.inner_stale');
     }
 }
