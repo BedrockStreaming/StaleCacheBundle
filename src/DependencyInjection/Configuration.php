@@ -18,6 +18,7 @@ class Configuration implements ConfigurationInterface
         $treeBuilder->getRootNode()
             ->children()
             ->arrayNode('decorated_services')
+            // TODO declare subkeys
             ->variablePrototype();
 
         return $treeBuilder;

@@ -30,7 +30,7 @@ class BedrockStaleCacheExtension extends Extension
      */
     private function configureStaleCacheService(ContainerBuilder $container, string $id, array $options): void
     {
-        $definition = $container->register($id.'.stale', Stale::class);
+        $definition = $container->register($options['service_name'] ?? $id.'.stale', Stale::class);
         $definition->setArgument('$internalCache', new Reference($id));
         $definition->setArgument('$maxStale', $options['max_stale']);
         $definition->setAutoconfigured(true);

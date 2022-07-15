@@ -36,6 +36,7 @@
     "phpunit/phpunit": "^9.5",
     "phpspec/prophecy-phpunit": "^2.0",
     "m6web/php-cs-fixer-config": "^2.0",
-    "phpstan/phpstan": "^1.6"
+    "phpstan/phpstan": "^1.6",
+    "rector/rector": "^0.13.8"
   }
 }

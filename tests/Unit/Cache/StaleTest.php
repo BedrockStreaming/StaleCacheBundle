@@ -57,6 +57,7 @@ class StaleTest extends TestCase
 
         $metadataArgument = Argument::any();
         $this->internalCache->get($key, Argument::any(), 0, $metadataArgument)
+            // Execute $callback
             ->will(function ($args) use ($cacheItem) {
                 $save = true;
 
@@ -92,9 +93,11 @@ class StaleTest extends TestCase
 
         $metadataArgument = Argument::any();
         $this->internalCache->get($key, Argument::any(), 0, $metadataArgument)
+            // Use cached value
             ->willReturn($oldValue);
 
         $this->internalCache->get($key, Argument::any(), \INF, $metadataArgument)
+            // Execute $callback
             ->will(function ($args) use ($cacheItem) {
                 $save = true;
 
@@ -133,12 +136,12 @@ class StaleTest extends TestCase
         ];
     }
 
-    public function testGetItemHitWithFallback(): void
+    public function testGetItemHitAndUseStaleMode(): void
     {
         $key = uniqid('key_', true);
         $value = uniqid('value_', true);
         $callback = function () {
-            throw new UnavailableResourceExceptionMock();
+            throw new UnavailableResourceExceptionMock(true);
         };
         $beta = (float) rand(1, 10);
         $initialExpiry = \DateTimeImmutable::createFromFormat('U.u', (string) microtime(true))
@@ -149,10 +152,12 @@ class StaleTest extends TestCase
 
         $metadataArgument = Argument::any();
         $this->internalCache->get($key, Argument::any(), 0, $metadataArgument)
+            // Use cached value
             ->willReturn($value);
 
         $this->internalCache->get($key, Argument::any(), \INF, $metadataArgument)
             ->shouldBeCalledOnce()
+            // Execute $callback
             ->will(function ($args) use ($cacheItem) {
                 $save = true;
 
@@ -171,9 +176,63 @@ class StaleTest extends TestCase
     }
 
     /**
+     * @dataProvider provideGetItemHitAndFailsToUseStaleMode
+     */
+    public function testGetItemHitAndFailsToUseStaleMode(callable $callback, string $exceptionClass): void
+    {
+        $key = uniqid('key_', true);
+        $value = uniqid('value_', true);
+        $beta = (float) rand(1, 10);
+        $initialExpiry = \DateTimeImmutable::createFromFormat('U.u', (string) microtime(true))
+            ->modify('+1 hour');
+        $cacheItem = new CacheItem();
+        $cacheItem->expiresAt($initialExpiry);
+
+        $metadataArgument = Argument::any();
+        $this->internalCache->get($key, Argument::any(), 0, $metadataArgument)
+            // Use cached value
+            ->willReturn($value);
+
+        $this->internalCache->get($key, Argument::any(), \INF, $metadataArgument)
+            ->shouldBeCalledOnce()
+            // Execute $callback
+            ->will(function ($args) use ($cacheItem) {
+                $save = true;
+
+                return $args[1]($cacheItem, $save);
+            });
+
+        $this->eventDispatcher->dispatch(Argument::that(fn ($event) => $event instanceof StaleCacheUsage))
+            ->shouldNotBeCalled();
+
+        // Item is in cache, but in stale mode
+        // Value cannot be refreshed due to failing source
+        $metadata = [ItemInterface::METADATA_EXPIRY => microtime(true) + self::DEFAULT_MAX_STALE / 2];
+        $this->expectException($exceptionClass);
+        $this->testedInstance->get($key, $callback, $beta, $metadata);
+    }
+
+    public function provideGetItemHitAndFailsToUseStaleMode(): iterable
+    {
+        yield 'error do not allow stale cache mode' => [
+            'callback' => function () {
+                throw new UnavailableResourceExceptionMock(false);
+            },
+            'exception_class' => UnavailableResourceExceptionMock::class,
+        ];
+
+        yield 'error do not implement the correct interface' => [
+            'callback' => function () {
+                throw new \Exception();
+            },
+            'exception_class' => \Exception::class,
+        ];
+    }
+
+    /**
      * @dataProvider provideMetadataNotInStale
      */
-    public function testGetItemHitWithoutFallback(array $metadata): void
+    public function testGetItemHitWithoutStaleMode(array $metadata): void
     {
         $key = uniqid('key_', true);
         $value = uniqid('value_', true);
@@ -182,10 +241,12 @@ class StaleTest extends TestCase
 
         $metadataArgument = Argument::any();
         $this->internalCache->get($key, Argument::any(), 0, $metadataArgument)
+            // Use cached value
             ->willReturn($value);
 
         $this->internalCache->get($key, Argument::any(), \INF, $metadataArgument)
             ->shouldNotBeCalled()
+            // Use cached value
             ->willReturn($value); // To avoid type errors if it's actually called
 
         $this->eventDispatcher->dispatch(Argument::that(fn ($event) => $event instanceof StaleCacheUsage))
@@ -210,12 +271,13 @@ class StaleTest extends TestCase
     {
         $key = uniqid('key_', true);
         $callback = function () {
-            throw new UnavailableResourceExceptionMock();
+            throw new UnavailableResourceExceptionMock(true);
         };
         $beta = (float) rand(1, 10);
 
         $metadataArgument = Argument::any();
         $this->internalCache->get($key, Argument::any(), 0, $metadataArgument)
+            // Execute $callback
             ->will(function ($args) {
                 $save = true;
 

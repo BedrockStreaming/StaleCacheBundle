@@ -26,12 +26,13 @@ quality: cs-ci phpstan
 quality-fix: cs-fix
 
 .PHONY: test
-test: cs phpstan phpunit
+test: cs rector phpstan phpunit
 
 # Coding Style
 
 .PHONY: cs
 cs:
+	$(call printSection,Check coding style)
 	${BIN_DIR}/php-cs-fixer fix --dry-run --stop-on-violation --diff
 
 .PHONY: cs-fix
@@ -66,9 +67,15 @@ tool-ci-%: ${CI_DIR}
 # TEST
 .PHONY: phpunit
 phpunit:
-	$(call printSection,TEST phpunit)
+	$(call printSection,Test PHPUnit)
 	${BIN_DIR}/phpunit
 
 .PHONY: phpstan
 phpstan:
-	${BIN_DIR}/phpstan.phar analyse --memory-limit=1G
+	$(call printSection,Test PHPStan)
+	${BIN_DIR}/phpstan.phar analyse
+
+.PHONY: rector
+rector:
+	$(call printSection,Test Rector)
+	${BIN_DIR}/rector process --dry-run
