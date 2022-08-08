@@ -321,6 +321,11 @@ class StaleTest extends TestCase
         self::assertEquals($success, $result);
     }
 
+    public function testGetItemWithDefaultLifetime()
+    {
+        // TODO
+    }
+
     private static function assertCacheItemExpiryEquals(float $expiry, CacheItem $cacheItem)
     {
         $cacheItemExpiry = (\Closure::bind(function (CacheItem $item) {

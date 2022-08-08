@@ -16,13 +16,13 @@ First, you should configure each stale cache service:
 
 ```yaml
 bedrock_stale_cache:
-    decorated_services:
-        cache_service_id:                          # An existing service named cache_service_id, implementing Symfony\Contracts\Cache\CacheInterface
-            service_name: cache_service_id.stale   # Optional stale service name, defaulting to cache_service_id.stale
+    decorated_cache_pools:
+        stale_cache_service_id:                    # Desired id for this new stale cache instance
+            cache_pool: cache_pool_id              # Cache pool on top of which stale cache will be used 
             max_stale: 3600                        # Stale period duration, in seconds
 ```
 
-It will declare a `@cache_service_id.stale`, that you can use as an injected dependency.
+It will declare a `@stale_cache_service_id`, that you can use as an injected dependency.
 The stale service will implement `Symfony\Contracts\Cache\CacheInterface`, so you'll need to use the `get` method to fetch cache items.
 You can use `Symfony\Contracts\Cache\TagAwareCacheInterface` if you need tagging capabilities.
 

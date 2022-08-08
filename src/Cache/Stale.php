@@ -20,6 +20,8 @@ class Stale implements TagAwareCacheInterface
 
     private int $maxStale;
 
+    private ?int $defaultLifetime = null;
+
     public function __construct(
         CacheInterface $internalCache,
         EventDispatcherInterface $dispatcher,
@@ -83,12 +85,23 @@ class Stale implements TagAwareCacheInterface
         return false;
     }
 
+    public function setDefaultLifetime(int $defaultLifetime): void
+    {
+        $this->defaultLifetime = $defaultLifetime;
+    }
+
     private function increaseCacheLifetime(CacheItem $item): void
     {
+        $defaultLifetime = $this->defaultLifetime;
         // Please to not judge me, this kind of dark magic comes straight out of Symfony
-        $callback = \Closure::bind(static function (CacheItem $item, int $maxStale) {
+        $callback = \Closure::bind(static function (CacheItem $item, int $maxStale) use ($defaultLifetime) {
+            // Default lifetime is not included in CacheItem
+            // See https://github.com/symfony/cache/blob/5cf8e75f02932818889e0609380b8d5427a6c86c/Adapter/ChainAdapter.php#L78-L82
+            // for native behavior
             if (isset($item->expiry) && $item->expiry !== null) {
                 $item->expiry += $maxStale;
+            } elseif ($defaultLifetime !== null) {
+                $item->expiresAfter($defaultLifetime + $maxStale);
             }
         }, null, CacheItem::class);
 
