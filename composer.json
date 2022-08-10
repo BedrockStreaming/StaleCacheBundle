@@ -1,5 +1,5 @@
 {
-  "name": "bedrock/stale-cache-bundle",
+  "name": "bedrockstreaming/stale-cache-bundle",
   "description": "Add a stale mode into Symfony cache",
   "type": "symfony-bundle",
   "license": "proprietary",
