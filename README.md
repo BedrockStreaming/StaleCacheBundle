@@ -20,6 +20,7 @@ bedrock_stale_cache:
         stale_cache_service_id:                    # Desired id for this new stale cache instance
             cache_pool: cache_pool_id              # Cache pool on top of which stale cache will be used 
             max_stale: 3600                        # Stale period duration, in seconds
+            enable_debug_logs: true                # Optional (defaults to false), produce a bunch of debug logs
 ```
 
 It will declare a `@stale_cache_service_id`, that you can use as an injected dependency.
@@ -37,9 +38,10 @@ The method `allowStaleCacheUsage` can be used for some custom logic, or you can 
 
 A `Bedrock\StaleCacheBundle\Event\StaleCacheUsage` event is sent on stale cache usage. It is strongly advised to log it, with the associated error.
 
-### Remarks
+### Logs
 
-This bundle disables [the stampede prevention from Symfony Cache](https://symfony.com/doc/current/components/cache.html#stampede-prevention).
+Debug logs can be enabled to ensure correct stale cache usage.
+It should not be enabled in a production environment since it can cause performance issue.
 
 ## Contribute
 

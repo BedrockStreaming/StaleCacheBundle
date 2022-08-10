@@ -33,7 +33,7 @@ class AddStaleCacheLifetime implements CompilerPassInterface
      */
     private function findCachePoolDefaultLifetime(string $cachePool, array $cachePoolServices): ?int
     {
-        foreach ($cachePoolServices as $serviceId => $tags) {
+        foreach ($cachePoolServices as $tags) {
             foreach ($tags as $tag) {
                 if (array_key_exists('name', $tag) && $tag['name'] === $cachePool) {
                     return $tag['default_lifetime'] ?? null;

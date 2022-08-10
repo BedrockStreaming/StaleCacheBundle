@@ -7,6 +7,7 @@ namespace Bedrock\StaleCacheBundle\Cache;
 use Bedrock\StaleCacheBundle\Event\StaleCacheUsage;
 use Bedrock\StaleCacheBundle\Exception\UnavailableResourceException;
 use Psr\EventDispatcher\EventDispatcherInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\Cache\CacheItem;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
@@ -20,16 +21,20 @@ class Stale implements TagAwareCacheInterface
 
     private int $maxStale;
 
+    private ?LoggerInterface $logger;
+
     private ?int $defaultLifetime = null;
 
     public function __construct(
         CacheInterface $internalCache,
         EventDispatcherInterface $dispatcher,
-        int $maxStale
+        int $maxStale,
+        ?LoggerInterface $logger = null
     ) {
         $this->internalCache = $internalCache;
         $this->dispatcher = $dispatcher;
         $this->maxStale = $maxStale;
+        $this->logger = $logger;
     }
 
     /**
@@ -53,18 +58,36 @@ class Stale implements TagAwareCacheInterface
         // $beta = 0 to disable early recompute
         $value = $this->internalCache->get($key, $callbackWithIncreasedCacheTime, 0, $metadata);
 
-        // If value is cached and we're in stale mode, try to force recomputing it
-        // Ignore correctly marked exceptions: this is where the stale mode should work as a fallback
-        if ($isHit && ($this->isStale($metadata) || $this->shouldTriggerEarlyCacheExpiry($metadata, $beta))) {
+        $recompute = false;
+        if ($this->isStale($metadata)) {
+            $this->logDebugMessage('Value is stale, try to recompute it', $key);
+            $recompute = true;
+        }
+
+        if (!$recompute && $this->shouldTriggerEarlyCacheExpiry($metadata, $beta)) {
+            $this->logDebugMessage('Value elected to early expiration, try to recompute it', $key);
+            $recompute = true;
+        }
+
+        if ($isHit && $recompute) {
             try {
                 // $beta = \INF to force an early recompute
                 $value = $this->internalCache->get($key, $callbackWithIncreasedCacheTime, \INF, $metadata);
             } catch (UnavailableResourceException $exception) {
                 if (!$exception->allowStaleCacheUsage()) {
+                    $this->logDebugMessage('Cannot fallback to stale mode', $key, $exception);
                     throw $exception;
                 }
 
-                $this->dispatcher->dispatch(new StaleCacheUsage($exception));
+                $this->logDebugMessage('Fallback to stale mode', $key, $exception);
+                $this->dispatcher->dispatch(new StaleCacheUsage($exception, $key));
+            } catch (\Throwable $throwable) {
+                $this->logDebugMessage(
+                    sprintf('Exception %s do not allow stale cache, it will be rethrown', get_class($throwable)),
+                    $key, $throwable
+                );
+
+                throw $throwable;
             }
         }
 
@@ -139,5 +162,12 @@ class Stale implements TagAwareCacheInterface
         // so with beta = 1,
         // it should be triggered a few hundreds of ms before due time.
         return ($expiry - $this->maxStale) <= microtime(true) - $ctime / 1000 * $beta * log(random_int(1, \PHP_INT_MAX) / \PHP_INT_MAX);
+    }
+
+    private function logDebugMessage(string $message, string $cacheKey, ?\Throwable $throwable = null): void
+    {
+        if ($this->logger) {
+            $this->logger->debug($message, ['cache_key' => $cacheKey, 'exception' => $throwable]);
+        }
     }
 }
