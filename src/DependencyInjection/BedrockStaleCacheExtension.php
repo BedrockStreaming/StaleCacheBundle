@@ -36,5 +36,11 @@ class BedrockStaleCacheExtension extends Extension
         $definition->setAutoconfigured(true);
         $definition->setAutowired(true);
         $definition->addTag('bedrock_stale_cache.stale_cache', $options);
+
+        // By default, disable debug logs
+        $enableDebugLogs = $options['enable_debug_logs'] ?? false;
+        if (!$enableDebugLogs) {
+            $definition->setArgument('$logger', null);
+        }
     }
 }

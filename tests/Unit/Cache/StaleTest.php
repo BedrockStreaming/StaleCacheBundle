@@ -12,6 +12,7 @@ use Prophecy\Argument;
 use Prophecy\PhpUnit\ProphecyTrait;
 use Prophecy\Prophecy\ObjectProphecy;
 use Psr\EventDispatcher\EventDispatcherInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\Cache\CacheItem;
 use Symfony\Contracts\Cache\ItemInterface;
 use Symfony\Contracts\Cache\TagAwareCacheInterface;
@@ -28,17 +29,22 @@ class StaleTest extends TestCase
     /** @var ObjectProphecy|EventDispatcherInterface */
     private ObjectProphecy $eventDispatcher;
 
+    /** @var ObjectProphecy|LoggerInterface */
+    private ObjectProphecy $logger;
+
     private Stale $testedInstance;
 
     public function setUp(): void
     {
         $this->internalCache = $this->prophesize(TagAwareCacheInterface::class);
         $this->eventDispatcher = $this->prophesize(EventDispatcherInterface::class);
+        $this->logger = $this->prophesize(LoggerInterface::class);
 
         $this->testedInstance = new Stale(
             $this->internalCache->reveal(),
             $this->eventDispatcher->reveal(),
-            self::DEFAULT_MAX_STALE
+            self::DEFAULT_MAX_STALE,
+            $this->logger->reveal(),
         );
     }
 
@@ -69,6 +75,9 @@ class StaleTest extends TestCase
             ->shouldNotBeCalled();
 
         $this->eventDispatcher->dispatch(Argument::that(fn ($event) => $event instanceof StaleCacheUsage))
+            ->shouldNotBeCalled();
+
+        $this->logger->debug(Argument::cetera())
             ->shouldNotBeCalled();
 
         $metadata = [];
@@ -107,6 +116,11 @@ class StaleTest extends TestCase
 
         $this->eventDispatcher->dispatch(Argument::that(fn ($event) => $event instanceof StaleCacheUsage))
             ->shouldNotBeCalled();
+
+        $this->logger->debug('Value is stale, try to recompute it', Argument::any())->shouldBeCalledOnce();
+        $this->logger->debug('Value elected to early expiration, try to recompute it', Argument::any())->shouldNotBeCalled();
+        $this->logger->debug('Cannot fallback to stale mode', Argument::any())->shouldNotBeCalled();
+        $this->logger->debug('Fallback to stale mode', Argument::any())->shouldNotBeCalled();
 
         // Item is in cache, but in stale mode
         // We force refreshing the value, getting a new one
@@ -167,6 +181,11 @@ class StaleTest extends TestCase
         $this->eventDispatcher->dispatch(Argument::that(fn ($event) => $event instanceof StaleCacheUsage))
             ->shouldBeCalledOnce();
 
+        $this->logger->debug('Value is stale, try to recompute it', Argument::any())->shouldBeCalledOnce();
+        $this->logger->debug('Value elected to early expiration, try to recompute it', Argument::any())->shouldNotBeCalled();
+        $this->logger->debug('Cannot fallback to stale mode', Argument::any())->shouldNotBeCalled();
+        $this->logger->debug('Fallback to stale mode', Argument::any())->shouldBeCalled();
+
         // Item is in cache, but in stale mode
         // Value cannot be refreshed due to failing source
         $metadata = [ItemInterface::METADATA_EXPIRY => microtime(true) + self::DEFAULT_MAX_STALE / 2];
@@ -175,10 +194,7 @@ class StaleTest extends TestCase
         self::assertCacheItemExpiryEquals($initialExpiryAsFloat, $cacheItem);
     }
 
-    /**
-     * @dataProvider provideGetItemHitAndFailsToUseStaleMode
-     */
-    public function testGetItemHitAndFailsToUseStaleMode(callable $callback, string $exceptionClass): void
+    public function testGetItemHitAndFailsAndNotAllowedToUseStaleMode(): void
     {
         $key = uniqid('key_', true);
         $value = uniqid('value_', true);
@@ -187,6 +203,9 @@ class StaleTest extends TestCase
             ->modify('+1 hour');
         $cacheItem = new CacheItem();
         $cacheItem->expiresAt($initialExpiry);
+        $callback = function () {
+            throw new UnavailableResourceExceptionMock(false);
+        };
 
         $metadataArgument = Argument::any();
         $this->internalCache->get($key, Argument::any(), 0, $metadataArgument)
@@ -205,28 +224,59 @@ class StaleTest extends TestCase
         $this->eventDispatcher->dispatch(Argument::that(fn ($event) => $event instanceof StaleCacheUsage))
             ->shouldNotBeCalled();
 
+        $this->logger->debug('Value is stale, try to recompute it', Argument::any())->shouldBeCalledOnce();
+        $this->logger->debug('Value elected to early expiration, try to recompute it', Argument::any())->shouldNotBeCalled();
+        $this->logger->debug('Cannot fallback to stale mode', Argument::any())->shouldBeCalledOnce();
+        $this->logger->debug('Fallback to stale mode', Argument::any())->shouldNotBeCalled();
+
         // Item is in cache, but in stale mode
         // Value cannot be refreshed due to failing source
         $metadata = [ItemInterface::METADATA_EXPIRY => microtime(true) + self::DEFAULT_MAX_STALE / 2];
-        $this->expectException($exceptionClass);
+        $this->expectException(UnavailableResourceExceptionMock::class);
         $this->testedInstance->get($key, $callback, $beta, $metadata);
     }
 
-    public function provideGetItemHitAndFailsToUseStaleMode(): iterable
+    public function testGetItemHitAndFailsAndCannotUseStaleMode(): void
     {
-        yield 'error do not allow stale cache mode' => [
-            'callback' => function () {
-                throw new UnavailableResourceExceptionMock(false);
-            },
-            'exception_class' => UnavailableResourceExceptionMock::class,
-        ];
+        $key = uniqid('key_', true);
+        $value = uniqid('value_', true);
+        $beta = (float) rand(1, 10);
+        $initialExpiry = \DateTimeImmutable::createFromFormat('U.u', (string) microtime(true))
+            ->modify('+1 hour');
+        $cacheItem = new CacheItem();
+        $cacheItem->expiresAt($initialExpiry);
+        $callback = function () {
+            throw new \Exception();
+        };
 
-        yield 'error do not implement the correct interface' => [
-            'callback' => function () {
-                throw new \Exception();
-            },
-            'exception_class' => \Exception::class,
-        ];
+        $metadataArgument = Argument::any();
+        $this->internalCache->get($key, Argument::any(), 0, $metadataArgument)
+            // Use cached value
+            ->willReturn($value);
+
+        $this->internalCache->get($key, Argument::any(), \INF, $metadataArgument)
+            ->shouldBeCalledOnce()
+            // Execute $callback
+            ->will(function ($args) use ($cacheItem) {
+                $save = true;
+
+                return $args[1]($cacheItem, $save);
+            });
+
+        $this->eventDispatcher->dispatch(Argument::that(fn ($event) => $event instanceof StaleCacheUsage))
+            ->shouldNotBeCalled();
+
+        $this->logger->debug('Value is stale, try to recompute it', Argument::any())->shouldBeCalledOnce();
+        $this->logger->debug('Value elected to early expiration, try to recompute it', Argument::any())->shouldNotBeCalled();
+        $this->logger->debug('Cannot fallback to stale mode', Argument::any())->shouldNotBeCalled();
+        $this->logger->debug('Fallback to stale mode', Argument::any())->shouldNotBeCalled();
+        $this->logger->debug('Exception Exception do not allow stale cache, it will be rethrown', Argument::any())->shouldBeCalledOnce();
+
+        // Item is in cache, but in stale mode
+        // Value cannot be refreshed due to failing source
+        $metadata = [ItemInterface::METADATA_EXPIRY => microtime(true) + self::DEFAULT_MAX_STALE / 2];
+        $this->expectException(\Exception::class);
+        $this->testedInstance->get($key, $callback, $beta, $metadata);
     }
 
     /**
@@ -250,6 +300,9 @@ class StaleTest extends TestCase
             ->willReturn($value); // To avoid type errors if it's actually called
 
         $this->eventDispatcher->dispatch(Argument::that(fn ($event) => $event instanceof StaleCacheUsage))
+            ->shouldNotBeCalled();
+
+        $this->logger->debug(Argument::cetera())
             ->shouldNotBeCalled();
 
         $result = $this->testedInstance->get($key, $callback, $beta, $metadata);
@@ -290,6 +343,9 @@ class StaleTest extends TestCase
         $this->eventDispatcher->dispatch(Argument::that(fn ($event) => $event instanceof StaleCacheUsage))
             ->shouldNotBeCalled();
 
+        $this->logger->debug(Argument::cetera())
+            ->shouldNotBeCalled();
+
         $metadata = [];
         $this->expectException(UnavailableResourceExceptionMock::class);
         $this->testedInstance->get($key, $callback, $beta, $metadata);
@@ -306,8 +362,6 @@ class StaleTest extends TestCase
 
         $cacheItem = new CacheItem();
 
-        $expectedExpiryMin = microtime(true) + self::DEFAULT_MAX_STALE + $defaultLifetime;
-
         $metadataArgument = Argument::any();
         $this->internalCache->get($key, Argument::any(), 0, $metadataArgument)
             // Use cached value
@@ -322,20 +376,88 @@ class StaleTest extends TestCase
                 return $args[1]($cacheItem, $save);
             });
 
-        $this->testedInstance->setDefaultLifetime($defaultLifetime);
+        $this->eventDispatcher->dispatch(Argument::that(fn ($event) => $event instanceof StaleCacheUsage))
+            ->shouldNotBeCalled();
+
+        $this->logger->debug('Value is stale, try to recompute it', Argument::any())->shouldBeCalledOnce();
+        $this->logger->debug('Value elected to early expiration, try to recompute it', Argument::any())->shouldNotBeCalled();
+        $this->logger->debug('Cannot fallback to stale mode', Argument::any())->shouldNotBeCalled();
+        $this->logger->debug('Fallback to stale mode', Argument::any())->shouldNotBeCalled();
 
         // Item is in cache, but in stale mode
         // Value cannot be refreshed due to failing source
         $metadata = [ItemInterface::METADATA_EXPIRY => microtime(true) + self::DEFAULT_MAX_STALE / 2];
+        $this->testedInstance->setDefaultLifetime($defaultLifetime);
+        $expectedExpiryMin = microtime(true) + self::DEFAULT_MAX_STALE + $defaultLifetime;
         $result = $this->testedInstance->get($key, $callback, $beta, $metadata);
-
         $expectedExpiryMax = microtime(true) + self::DEFAULT_MAX_STALE + $defaultLifetime;
 
         self::assertEquals($value, $result);
+        self::assertCacheItemExpiryBetween($expectedExpiryMin, $expectedExpiryMax, $cacheItem);
+    }
 
-        $cacheItemExpiry = self::getCacheItemExpiry($cacheItem);
-        self::assertGreaterThan($expectedExpiryMin, $cacheItemExpiry);
-        self::assertLessThan($expectedExpiryMax, $cacheItemExpiry);
+    /**
+     * @dataProvider provideValuesThatTriggerEarlyExpiry
+     */
+    public function testGetItemHitWithEarlyExpiry(int $ctime, float $beta)
+    {
+        $key = uniqid('key_', true);
+        $oldValue = uniqid('old_value_', true);
+        $newValue = uniqid('value_', true);
+        $callback = fn () => $newValue;
+        $beta = (float) rand(1, 10);
+        $initialExpiry = \DateTimeImmutable::createFromFormat('U.u', (string) microtime(true))
+            ->modify('+1 hour');
+        $cacheItem = new CacheItem();
+        $cacheItem->expiresAt($initialExpiry);
+        $initialExpiryAsFloat = (float) $initialExpiry->format('U.u');
+
+        $metadataArgument = Argument::any();
+        $this->internalCache->get($key, Argument::any(), 0, $metadataArgument)
+            // Use cached value
+            ->willReturn($oldValue);
+
+        $this->internalCache->get($key, Argument::any(), \INF, $metadataArgument)
+            // Execute $callback
+            ->will(function ($args) use ($cacheItem) {
+                $save = true;
+
+                return $args[1]($cacheItem, $save);
+            })
+            ->shouldBeCalledOnce();
+
+        $this->eventDispatcher->dispatch(Argument::that(fn ($event) => $event instanceof StaleCacheUsage))
+            ->shouldNotBeCalled();
+
+        $this->logger->debug('Value is stale, try to recompute it', Argument::any())->shouldNotBeCalled();
+        $this->logger->debug('Value elected to early expiration, try to recompute it', Argument::any())->shouldBeCalledOnce();
+        $this->logger->debug('Cannot fallback to stale mode', Argument::any())->shouldNotBeCalled();
+        $this->logger->debug('Fallback to stale mode', Argument::any())->shouldNotBeCalled();
+
+        // Item is in cache, will soon expire but not yet in stale mode
+        // Using a huge beta & ctime we force early cache expiry
+        $metadata = [
+            ItemInterface::METADATA_EXPIRY => microtime(true) + self::DEFAULT_MAX_STALE + 1,
+            ItemInterface::METADATA_CTIME => PHP_INT_MAX,
+        ];
+        $result = $this->testedInstance->get($key, $callback, $beta, $metadata);
+        // There is an **extremely low** probability for this to fail...
+        // If it does, you can restart the test a few times and find a casino
+        self::assertEquals($newValue, $result);
+        self::assertCacheItemExpiryEquals($initialExpiryAsFloat + self::DEFAULT_MAX_STALE, $cacheItem);
+    }
+
+    public function provideValuesThatTriggerEarlyExpiry(): iterable
+    {
+        yield 'Big ctime with normal beta' => [
+            'ctime' => \PHP_INT_MAX,
+            'beta' => 1.0,
+        ];
+
+        yield 'Normal ctime with INF beta' => [
+            'ctime' => 100,
+            'beta' => \INF,
+        ];
     }
 
     public function testDelete(): void
@@ -366,10 +488,14 @@ class StaleTest extends TestCase
 
     private static function assertCacheItemExpiryEquals(float $expiry, CacheItem $cacheItem)
     {
-        $cacheItemExpiry = (\Closure::bind(function (CacheItem $item) {
-            return $item->expiry;
-        }, null, CacheItem::class))($cacheItem);
-        self::assertEquals($expiry, $cacheItemExpiry);
+        self::assertEquals($expiry, self::getCacheItemExpiry($cacheItem));
+    }
+
+    private static function assertCacheItemExpiryBetween(float $expiryMin, float $expiryMax, CacheItem $cacheItem)
+    {
+        $cacheItemExpiry = self::getCacheItemExpiry($cacheItem);
+        self::assertGreaterThan($expiryMin, $cacheItemExpiry);
+        self::assertLessThan($expiryMax, $cacheItemExpiry);
     }
 
     private static function getCacheItemExpiry(CacheItem $cacheItem)
