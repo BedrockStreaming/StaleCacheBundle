@@ -338,6 +338,65 @@ class StaleTest extends TestCase
         self::assertLessThan($expectedExpiryMax, $cacheItemExpiry);
     }
 
+    /**
+     * @dataProvider provideValuesThatTriggerEarlyExpiry
+     */
+    public function testGetItemHitWithEarlyExpiry(int $ctime, float $beta)
+    {
+        $key = uniqid('key_', true);
+        $oldValue = uniqid('old_value_', true);
+        $newValue = uniqid('value_', true);
+        $callback = fn () => $newValue;
+        $beta = (float) rand(1, 10);
+        $initialExpiry = \DateTimeImmutable::createFromFormat('U.u', (string) microtime(true))
+            ->modify('+1 hour');
+        $cacheItem = new CacheItem();
+        $cacheItem->expiresAt($initialExpiry);
+        $initialExpiryAsFloat = (float) $initialExpiry->format('U.u');
+
+        $metadataArgument = Argument::any();
+        $this->internalCache->get($key, Argument::any(), 0, $metadataArgument)
+            // Use cached value
+            ->willReturn($oldValue);
+
+        $this->internalCache->get($key, Argument::any(), \INF, $metadataArgument)
+            // Execute $callback
+            ->will(function ($args) use ($cacheItem) {
+                $save = true;
+
+                return $args[1]($cacheItem, $save);
+            })
+            ->shouldBeCalledOnce();
+
+        $this->eventDispatcher->dispatch(Argument::that(fn ($event) => $event instanceof StaleCacheUsage))
+            ->shouldNotBeCalled();
+
+        // Item is in cache, will soon expire but not yet in stale mode
+        // Using a huge beta & ctime we force early cache expiry
+        $metadata = [
+            ItemInterface::METADATA_EXPIRY => microtime(true) + self::DEFAULT_MAX_STALE + 1,
+            ItemInterface::METADATA_CTIME => PHP_INT_MAX
+        ];
+        $result = $this->testedInstance->get($key, $callback, $beta, $metadata);
+        // There is an **extremely low** probability for this to fail...
+        // If it does, you can restart the test a few times and find a casino
+        self::assertEquals($newValue, $result);
+        self::assertCacheItemExpiryEquals($initialExpiryAsFloat + self::DEFAULT_MAX_STALE, $cacheItem);
+    }
+
+    public function provideValuesThatTriggerEarlyExpiry(): iterable
+    {
+        yield 'Big ctime with normal beta' => [
+            'ctime' => \PHP_INT_MAX,
+            'beta' => 1.0
+        ];
+
+        yield 'Normal ctime with INF beta' => [
+            'ctime' => 100,
+            'beta' => \INF
+        ];
+    }
+
     public function testDelete(): void
     {
         $key = uniqid('key_', true);
