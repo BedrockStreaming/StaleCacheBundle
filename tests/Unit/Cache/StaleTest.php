@@ -295,6 +295,49 @@ class StaleTest extends TestCase
         $this->testedInstance->get($key, $callback, $beta, $metadata);
     }
 
+    public function testGetItemWithDefaultLifetime()
+    {
+        $defaultLifetime = rand(100, 200);
+
+        $key = uniqid('key_', true);
+        $value = uniqid('value_', true);
+        $callback = fn (ItemInterface $item) => $value;
+        $beta = (float) rand(1, 10);
+
+        $cacheItem = new CacheItem();
+
+        $expectedExpiryMin = microtime(true) + self::DEFAULT_MAX_STALE + $defaultLifetime;
+
+        $metadataArgument = Argument::any();
+        $this->internalCache->get($key, Argument::any(), 0, $metadataArgument)
+            // Use cached value
+            ->willReturn($value);
+
+        $this->internalCache->get($key, Argument::any(), \INF, $metadataArgument)
+            ->shouldBeCalledOnce()
+            // Execute $callback
+            ->will(function ($args) use ($cacheItem) {
+                $save = true;
+
+                return $args[1]($cacheItem, $save);
+            });
+
+        $this->testedInstance->setDefaultLifetime($defaultLifetime);
+
+        // Item is in cache, but in stale mode
+        // Value cannot be refreshed due to failing source
+        $metadata = [ItemInterface::METADATA_EXPIRY => microtime(true) + self::DEFAULT_MAX_STALE / 2];
+        $result = $this->testedInstance->get($key, $callback, $beta, $metadata);
+
+        $expectedExpiryMax = microtime(true) + self::DEFAULT_MAX_STALE + $defaultLifetime;
+
+        self::assertEquals($value, $result);
+
+        $cacheItemExpiry = self::getCacheItemExpiry($cacheItem);
+        self::assertGreaterThan($expectedExpiryMin, $cacheItemExpiry);
+        self::assertLessThan($expectedExpiryMax, $cacheItemExpiry);
+    }
+
     public function testDelete(): void
     {
         $key = uniqid('key_', true);
@@ -321,16 +364,18 @@ class StaleTest extends TestCase
         self::assertEquals($success, $result);
     }
 
-    public function testGetItemWithDefaultLifetime()
-    {
-        // TODO
-    }
-
     private static function assertCacheItemExpiryEquals(float $expiry, CacheItem $cacheItem)
     {
         $cacheItemExpiry = (\Closure::bind(function (CacheItem $item) {
             return $item->expiry;
         }, null, CacheItem::class))($cacheItem);
         self::assertEquals($expiry, $cacheItemExpiry);
+    }
+
+    private static function getCacheItemExpiry(CacheItem $cacheItem)
+    {
+        return (\Closure::bind(function (CacheItem $item) {
+            return $item->expiry;
+        }, null, CacheItem::class))($cacheItem);
     }
 }

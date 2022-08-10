@@ -9,7 +9,7 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 
 class AddStaleCacheLifetime implements CompilerPassInterface
 {
-    public function process(ContainerBuilder $container)
+    public function process(ContainerBuilder $container): void
     {
         $cachePoolServices = $container->findTaggedServiceIds('cache.pool');
         $staleCacheServices = $container->findTaggedServiceIds('bedrock_stale_cache.stale_cache');
@@ -25,6 +25,12 @@ class AddStaleCacheLifetime implements CompilerPassInterface
         }
     }
 
+    /**
+     * @param array<string, array<array{
+     *     'name'?: string,
+     *     'default_lifetime'?: int,
+     * }>> $cachePoolServices
+     */
     private function findCachePoolDefaultLifetime(string $cachePool, array $cachePoolServices): ?int
     {
         foreach ($cachePoolServices as $serviceId => $tags) {
