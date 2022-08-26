@@ -8,7 +8,7 @@ jobs:
     strategy:
       matrix:
         php-version: [ '8.0', '8.1' ]
-        symfony-version: [ '4.4.*', '5.4.*', '6.*' ]
+        symfony-version: [ '5.4.*', '6.*' ]
         composer-options: [ '', '--prefer-lowest' ]
       fail-fast: false
     steps:
