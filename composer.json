@@ -38,6 +38,7 @@
     "phpspec/prophecy-phpunit": "^2.0",
     "m6web/php-cs-fixer-config": "^2.0",
     "phpstan/phpstan": "^1.6",
-    "rector/rector": "^0.13.8"
+    "rector/rector": "^0.13.8",
+    "symfony/polyfill-php80": "^1.16.0"
   }
 }
