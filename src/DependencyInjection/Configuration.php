@@ -18,8 +18,14 @@ class Configuration implements ConfigurationInterface
         $treeBuilder->getRootNode()
             ->children()
             ->arrayNode('decorated_cache_pools')
-            // TODO declare subkeys
-            ->variablePrototype();
+                ->useAttributeAsKey('stale_service_id')
+                ->arrayPrototype()
+                    ->children()
+                        ->scalarNode('cache_pool')->isRequired()->cannotBeEmpty()->end()
+                        ->integerNode('max_stale')->isRequired()->end()
+                        ->booleanNode('enable_debug_logs')->defaultFalse()->end()
+                    ->end()
+                ->end();
 
         return $treeBuilder;
     }
