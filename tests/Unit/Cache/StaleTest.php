@@ -27,8 +27,7 @@ class StaleTest extends TestCase
 
     private ObjectProphecy|EventDispatcherInterface $eventDispatcher;
 
-    /** @var ObjectProphecy|LoggerInterface */
-    private ObjectProphecy $logger;
+    private ObjectProphecy|LoggerInterface $logger;
 
     private Stale $testedInstance;
 

@@ -154,8 +154,6 @@ class Stale implements TagAwareCacheInterface
 
     private function logDebugMessage(string $message, string $cacheKey, ?\Throwable $throwable = null): void
     {
-        if ($this->logger) {
-            $this->logger->debug($message, ['cache_key' => $cacheKey, 'exception' => $throwable]);
-        }
+        $this->logger?->debug($message, ['cache_key' => $cacheKey, 'exception' => $throwable]);
     }
 }
