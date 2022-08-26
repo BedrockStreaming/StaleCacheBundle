@@ -71,7 +71,7 @@ class Stale implements TagAwareCacheInterface
                 $this->dispatcher->dispatch(new StaleCacheUsage($exception, $key));
             } catch (\Throwable $throwable) {
                 $this->logDebugMessage(
-                    sprintf('Exception %s do not allow stale cache, it will be rethrown', get_class($throwable)),
+                    sprintf('Exception %s do not allow stale cache, it will be rethrown', $throwable::class),
                     $key, $throwable
                 );
 

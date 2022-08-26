@@ -236,7 +236,7 @@ class StaleTest extends TestCase
     {
         $key = uniqid('key_', true);
         $value = uniqid('value_', true);
-        $beta = (float) rand(1, 10);
+        $beta = (float) random_int(1, 10);
         $initialExpiry = \DateTimeImmutable::createFromFormat('U.u', (string) microtime(true))
             ->modify('+1 hour');
         $cacheItem = new CacheItem();
@@ -347,12 +347,12 @@ class StaleTest extends TestCase
 
     public function testGetItemWithDefaultLifetime()
     {
-        $defaultLifetime = rand(100, 200);
+        $defaultLifetime = random_int(100, 200);
 
         $key = uniqid('key_', true);
         $value = uniqid('value_', true);
         $callback = fn (ItemInterface $item) => $value;
-        $beta = (float) rand(1, 10);
+        $beta = (float) random_int(1, 10);
 
         $cacheItem = new CacheItem();
 
@@ -399,7 +399,7 @@ class StaleTest extends TestCase
         $oldValue = uniqid('old_value_', true);
         $newValue = uniqid('value_', true);
         $callback = fn () => $newValue;
-        $beta = (float) rand(1, 10);
+        $beta = (float) random_int(1, 10);
         $initialExpiry = \DateTimeImmutable::createFromFormat('U.u', (string) microtime(true))
             ->modify('+1 hour');
         $cacheItem = new CacheItem();
@@ -494,8 +494,6 @@ class StaleTest extends TestCase
 
     private static function getCacheItemExpiry(CacheItem $cacheItem)
     {
-        return (\Closure::bind(function (CacheItem $item) {
-            return $item->expiry;
-        }, null, CacheItem::class))($cacheItem);
+        return (\Closure::bind(fn (CacheItem $item) => $item->expiry, null, CacheItem::class))($cacheItem);
     }
 }
