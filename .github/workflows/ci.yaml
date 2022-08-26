@@ -1,0 +1,19 @@
+name: Continuous Integration
+on: [pull_request]
+
+jobs:
+  ci:
+    name: Quality & Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        version: [ '7.4', '8.0', '8.1' ]
+        composer-options: [ '', '--prefer-lowest' ]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@master
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.version }}
+      - run: composer update ${{ matrix.composer-options }}
+      - run: make quality test
