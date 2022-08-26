@@ -45,10 +45,13 @@ It should not be enabled in a production environment since it can cause performa
 
 ## Contribute
 
-You can execute `make test` to execute all tests.
+You can execute `make quality test` to execute quality checks and tests.
+There is also a few make targets that can help you check this bundle is correctly supported on every Symfony versions
+* `make composer-install-sf4`
+* `make composer-install-sf5`
+* `make composer-install-sf6`
 
 ## TODO before release
 
-* [ ] Create Github Actions to execute tests
 * [ ] Cleanup configuration
 * [ ] Create version 1.0 for Symfony 5.4 + PHP 7.4 and version 2.0 for Symfony 6.0 and PHP 8.0, using branch `feat/php8`
