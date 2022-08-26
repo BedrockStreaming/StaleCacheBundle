@@ -1,7 +1,7 @@
 SHELL=bash
 SOURCE_DIR = $(shell pwd)
 BIN_DIR = ${SOURCE_DIR}/bin
-COMPOSER_BIN ?= composer2
+COMPOSER_BIN ?= composer
 CI_DIR = ${BIN_DIR}/tool-php-ci
 
 define printSection
@@ -49,6 +49,24 @@ clean-vendor:
 composer-install:
 	$(call printSection,COMPOSER INSTALL)
 	${COMPOSER_BIN} update --no-interaction --ansi --no-progress
+
+.PHONY: composer-install-sf4
+composer-install-sf4:
+	composer config extra.symfony.require "4.4.*"
+	${MAKE} composer-install
+	composer config --unset extra
+
+.PHONY: composer-install-sf5
+composer-install-sf5:
+	composer config extra.symfony.require "5.4.*"
+	${MAKE} composer-install
+	composer config --unset extra
+
+.PHONY: composer-install-sf6
+composer-install-sf6:
+	composer config extra.symfony.require "6.*"
+	${MAKE} composer-install
+	composer config --unset extra
 
 # TEST
 .PHONY: phpunit
