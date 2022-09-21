@@ -26,17 +26,17 @@
     }
   ],
   "require": {
-    "php": "^7.4 || ^8.0",
+    "php": "^8.0",
     "psr/event-dispatcher": "^1.0",
     "psr/log": "^1 || ^2 || ^3",
-    "symfony/dependency-injection": "^4.4 || ^5.4 || ^6.0" ,
-    "symfony/http-kernel": "^4.4 || ^5.4 || ^6.0",
-    "symfony/cache-contracts": "^1.0 || ^2.0",
-    "symfony/cache": "^4.4 || ^5.4 || ^6.0",
-    "symfony/config": "^4.4 || ^5.4 || ^6.0"
+    "symfony/dependency-injection": "^5.4 || ^6.0" ,
+    "symfony/http-kernel": "^5.4 || ^6.0",
+    "symfony/cache-contracts": "^2.0 || ^3.0",
+    "symfony/cache": "^5.4 || ^6.0",
+    "symfony/config": "^5.4 || ^6.0"
   },
   "require-dev": {
-    "symfony/var-dumper": "^4.4 || ^5.4 || ^6.0",
+    "symfony/var-dumper": "^5.4 || ^6.0",
     "phpunit/phpunit": "^9.5",
     "phpspec/prophecy-phpunit": "^2.0",
     "m6web/php-cs-fixer-config": "^2.0",
@@ -44,6 +44,6 @@
     "rector/rector": "^0.13.8",
     "symfony/polyfill-php80": "^1.16.0",
     "friendsofphp/php-cs-fixer": "^3.4.0",
-    "symfony/flex": "^1.19 || ^2.2"
+    "symfony/flex": "^2.2"
   }
 }

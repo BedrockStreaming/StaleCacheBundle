@@ -8,11 +8,8 @@ use Bedrock\StaleCacheBundle\Exception\UnavailableResourceException;
 
 class UnavailableResourceExceptionMock extends \Exception implements UnavailableResourceException
 {
-    private bool $allowStaleCacheUsage;
-
-    public function __construct(bool $allowStaleCacheUsage)
+    public function __construct(private bool $allowStaleCacheUsage)
     {
-        $this->allowStaleCacheUsage = $allowStaleCacheUsage;
     }
 
     public function allowStaleCacheUsage(): bool

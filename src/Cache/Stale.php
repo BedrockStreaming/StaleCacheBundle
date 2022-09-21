@@ -15,32 +15,20 @@ use Symfony\Contracts\Cache\TagAwareCacheInterface;
 
 class Stale implements TagAwareCacheInterface
 {
-    private CacheInterface $internalCache;
-
-    private EventDispatcherInterface $dispatcher;
-
-    private int $maxStale;
-
-    private ?LoggerInterface $logger;
-
     private ?int $defaultLifetime = null;
 
     public function __construct(
-        CacheInterface $internalCache,
-        EventDispatcherInterface $dispatcher,
-        int $maxStale,
-        ?LoggerInterface $logger = null
+        private CacheInterface $internalCache,
+        private EventDispatcherInterface $dispatcher,
+        private int $maxStale,
+        private ?LoggerInterface $logger = null
     ) {
-        $this->internalCache = $internalCache;
-        $this->dispatcher = $dispatcher;
-        $this->maxStale = $maxStale;
-        $this->logger = $logger;
     }
 
     /**
      * @param array<string,mixed>|null $metadata
      */
-    public function get(string $key, callable $callback, float $beta = null, array &$metadata = null)
+    public function get(string $key, callable $callback, float $beta = null, array &$metadata = null): mixed
     {
         $isHit = true;
 
@@ -83,7 +71,7 @@ class Stale implements TagAwareCacheInterface
                 $this->dispatcher->dispatch(new StaleCacheUsage($exception, $key));
             } catch (\Throwable $throwable) {
                 $this->logDebugMessage(
-                    sprintf('Exception %s do not allow stale cache, it will be rethrown', get_class($throwable)),
+                    sprintf('Exception %s do not allow stale cache, it will be rethrown', $throwable::class),
                     $key, $throwable
                 );
 
@@ -166,8 +154,6 @@ class Stale implements TagAwareCacheInterface
 
     private function logDebugMessage(string $message, string $cacheKey, ?\Throwable $throwable = null): void
     {
-        if ($this->logger) {
-            $this->logger->debug($message, ['cache_key' => $cacheKey, 'exception' => $throwable]);
-        }
+        $this->logger?->debug($message, ['cache_key' => $cacheKey, 'exception' => $throwable]);
     }
 }

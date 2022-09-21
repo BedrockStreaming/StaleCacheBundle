@@ -7,12 +7,9 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        php-version: [ '7.4', '8.0', '8.1' ]
-        symfony-version: [ '4.4.*', '5.4.*', '6.*' ]
+        php-version: [ '8.0', '8.1' ]
+        symfony-version: [ '5.4.*', '6.*' ]
         composer-options: [ '', '--prefer-lowest' ]
-        exclude:
-          - php-version: '7.4'
-            symfony-version: '6.*'
       fail-fast: false
     steps:
       - uses: actions/checkout@master

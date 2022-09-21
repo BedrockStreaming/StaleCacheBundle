@@ -23,14 +23,11 @@ class StaleTest extends TestCase
 
     private const DEFAULT_MAX_STALE = 1800;
 
-    /** @var ObjectProphecy|TagAwareCacheInterface */
-    private ObjectProphecy $internalCache;
+    private ObjectProphecy|TagAwareCacheInterface $internalCache;
 
-    /** @var ObjectProphecy|EventDispatcherInterface */
-    private ObjectProphecy $eventDispatcher;
+    private ObjectProphecy|EventDispatcherInterface $eventDispatcher;
 
-    /** @var ObjectProphecy|LoggerInterface */
-    private ObjectProphecy $logger;
+    private ObjectProphecy|LoggerInterface $logger;
 
     private Stale $testedInstance;
 
@@ -51,10 +48,10 @@ class StaleTest extends TestCase
     /**
      * @dataProvider provideValidCallback
      */
-    public function testGetNewItem($value, callable $callback): void
+    public function testGetNewItem(mixed $value, callable $callback): void
     {
         $key = uniqid('key_', true);
-        $beta = (float) rand(1, 10);
+        $beta = (float) random_int(1, 10);
         $initialExpiry = \DateTimeImmutable::createFromFormat('U.u', (string) microtime(true))
             ->modify('+1 hour');
         $cacheItem = new CacheItem();
@@ -89,11 +86,11 @@ class StaleTest extends TestCase
     /**
      * @dataProvider provideValidCallback
      */
-    public function testGetItemHitAndForceRefresh($newValue, callable $callback)
+    public function testGetItemHitAndForceRefresh(mixed $newValue, callable $callback)
     {
         $key = uniqid('key_', true);
         $oldValue = uniqid('old_value_', true);
-        $beta = (float) rand(1, 10);
+        $beta = (float) random_int(1, 10);
         $initialExpiry = \DateTimeImmutable::createFromFormat('U.u', (string) microtime(true))
             ->modify('+1 hour');
         $cacheItem = new CacheItem();
@@ -154,10 +151,8 @@ class StaleTest extends TestCase
     {
         $key = uniqid('key_', true);
         $value = uniqid('value_', true);
-        $callback = function () {
-            throw new UnavailableResourceExceptionMock(true);
-        };
-        $beta = (float) rand(1, 10);
+        $callback = fn () => throw new UnavailableResourceExceptionMock(true);
+        $beta = (float) random_int(1, 10);
         $initialExpiry = \DateTimeImmutable::createFromFormat('U.u', (string) microtime(true))
             ->modify('+1 hour');
         $cacheItem = new CacheItem();
@@ -198,7 +193,7 @@ class StaleTest extends TestCase
     {
         $key = uniqid('key_', true);
         $value = uniqid('value_', true);
-        $beta = (float) rand(1, 10);
+        $beta = (float) random_int(1, 10);
         $initialExpiry = \DateTimeImmutable::createFromFormat('U.u', (string) microtime(true))
             ->modify('+1 hour');
         $cacheItem = new CacheItem();
@@ -240,7 +235,7 @@ class StaleTest extends TestCase
     {
         $key = uniqid('key_', true);
         $value = uniqid('value_', true);
-        $beta = (float) rand(1, 10);
+        $beta = (float) random_int(1, 10);
         $initialExpiry = \DateTimeImmutable::createFromFormat('U.u', (string) microtime(true))
             ->modify('+1 hour');
         $cacheItem = new CacheItem();
@@ -287,7 +282,7 @@ class StaleTest extends TestCase
         $key = uniqid('key_', true);
         $value = uniqid('value_', true);
         $callback = fn () => self::fail('The passed callback should not be called');
-        $beta = (float) rand(1, 10);
+        $beta = (float) random_int(1, 10);
 
         $metadataArgument = Argument::any();
         $this->internalCache->get($key, Argument::any(), 0, $metadataArgument)
@@ -323,10 +318,8 @@ class StaleTest extends TestCase
     public function testGetItemMissWithFailingCallback(): void
     {
         $key = uniqid('key_', true);
-        $callback = function () {
-            throw new UnavailableResourceExceptionMock(true);
-        };
-        $beta = (float) rand(1, 10);
+        $callback = fn () => throw new UnavailableResourceExceptionMock(true);
+        $beta = (float) random_int(1, 10);
 
         $metadataArgument = Argument::any();
         $this->internalCache->get($key, Argument::any(), 0, $metadataArgument)
@@ -353,12 +346,12 @@ class StaleTest extends TestCase
 
     public function testGetItemWithDefaultLifetime()
     {
-        $defaultLifetime = rand(100, 200);
+        $defaultLifetime = random_int(100, 200);
 
         $key = uniqid('key_', true);
         $value = uniqid('value_', true);
         $callback = fn (ItemInterface $item) => $value;
-        $beta = (float) rand(1, 10);
+        $beta = (float) random_int(1, 10);
 
         $cacheItem = new CacheItem();
 
@@ -405,7 +398,7 @@ class StaleTest extends TestCase
         $oldValue = uniqid('old_value_', true);
         $newValue = uniqid('value_', true);
         $callback = fn () => $newValue;
-        $beta = (float) rand(1, 10);
+        $beta = (float) random_int(1, 10);
         $initialExpiry = \DateTimeImmutable::createFromFormat('U.u', (string) microtime(true))
             ->modify('+1 hour');
         $cacheItem = new CacheItem();
@@ -500,8 +493,6 @@ class StaleTest extends TestCase
 
     private static function getCacheItemExpiry(CacheItem $cacheItem)
     {
-        return (\Closure::bind(function (CacheItem $item) {
-            return $item->expiry;
-        }, null, CacheItem::class))($cacheItem);
+        return (\Closure::bind(fn (CacheItem $item) => $item->expiry, null, CacheItem::class))($cacheItem);
     }
 }
