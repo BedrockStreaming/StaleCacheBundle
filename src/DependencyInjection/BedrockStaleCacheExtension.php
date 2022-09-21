@@ -26,7 +26,11 @@ class BedrockStaleCacheExtension extends Extension
     }
 
     /**
-     * @param array<string, mixed> $options
+     * @param array{
+     *      cache_pool: string,
+     *      max_stale: int,
+     *      enable_debug_logs?: bool,
+     * } $options
      */
     private function configureStaleCacheService(ContainerBuilder $container, string $id, array $options): void
     {

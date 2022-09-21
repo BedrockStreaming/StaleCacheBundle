@@ -50,7 +50,3 @@ There is also a few make targets that can help you check this bundle is correctl
 * `make composer-install-sf4`
 * `make composer-install-sf5`
 * `make composer-install-sf6`
-
-## TODO before release
-
-* [ ] Create version 1.0 for Symfony 5.4 + PHP 7.4 and version 2.0 for Symfony 6.0 and PHP 8.0, using branch `feat/php8`
