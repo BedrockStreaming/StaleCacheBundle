@@ -1,0 +1,24 @@
+name: Continuous Integration
+on: [pull_request]
+
+jobs:
+  ci:
+    name: Quality & Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php-version: [ '7.4', '8.0', '8.1' ]
+        symfony-version: [ '4.4.*', '5.4.*', '6.*' ]
+        composer-options: [ '', '--prefer-lowest' ]
+        exclude:
+          - php-version: '7.4'
+            symfony-version: '6.*'
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@master
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+      - run: composer config extra.symfony.require "${{ matrix.symfony-version }}"
+      - run: composer update ${{ matrix.composer-options }}
+      - run: make quality test

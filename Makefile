@@ -1,7 +1,7 @@
 SHELL=bash
 SOURCE_DIR = $(shell pwd)
 BIN_DIR = ${SOURCE_DIR}/bin
-COMPOSER_BIN ?= composer2
+COMPOSER_BIN ?= composer
 CI_DIR = ${BIN_DIR}/tool-php-ci
 
 define printSection
@@ -11,22 +11,19 @@ define printSection
 endef
 
 .PHONY: all
-all: install quality test tool-ci-all
-
-.PHONY: ci
-ci: install quality test tool-ci-all
+all: install quality test
 
 .PHONY: install
 install: clean-vendor composer-install
 
 .PHONY: quality
-quality: cs-ci phpstan
+quality: rector cs phpstan
 
 .PHONY: quality-fix
-quality-fix: cs-fix
+quality-fix: rector-fix cs-fix
 
 .PHONY: test
-test: cs rector phpstan phpunit
+test: phpunit
 
 # Coding Style
 
@@ -38,10 +35,6 @@ cs:
 .PHONY: cs-fix
 cs-fix:
 	${BIN_DIR}/php-cs-fixer fix
-
-.PHONY: cs-ci
-cs-ci:
-	${BIN_DIR}/php-cs-fixer fix --ansi --dry-run --using-cache=no --verbose
 
 #COMPOSER
 
@@ -57,12 +50,23 @@ composer-install:
 	$(call printSection,COMPOSER INSTALL)
 	${COMPOSER_BIN} update --no-interaction --ansi --no-progress
 
-# CI TOOLS
-${CI_DIR}:
-	git clone --depth=1 https://github.m6web.fr/m6web/tool-php-ci.git ${CI_DIR}
+.PHONY: composer-install-sf4
+composer-install-sf4:
+	composer config extra.symfony.require "4.4.*"
+	${MAKE} composer-install
+	composer config --unset extra
 
-tool-ci-%: ${CI_DIR}
-	make -e SOURCE_DIR=${SOURCE_DIR} -e CI_DIR=${CI_DIR} -f ${CI_DIR}/Makefile $@
+.PHONY: composer-install-sf5
+composer-install-sf5:
+	composer config extra.symfony.require "5.4.*"
+	${MAKE} composer-install
+	composer config --unset extra
+
+.PHONY: composer-install-sf6
+composer-install-sf6:
+	composer config extra.symfony.require "6.*"
+	${MAKE} composer-install
+	composer config --unset extra
 
 # TEST
 .PHONY: phpunit
@@ -79,3 +83,8 @@ phpstan:
 rector:
 	$(call printSection,Test Rector)
 	${BIN_DIR}/rector process --dry-run
+
+.PHONY: rector-fix
+rector-fix:
+	$(call printSection,Execute Rector)
+	${BIN_DIR}/rector process
