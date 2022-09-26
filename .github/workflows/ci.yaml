@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        php-version: [ '8.0', '8.1' ]
+        php-version: [ '7.4', '8.0', '8.1' ]
         symfony-version: [ '5.4.*', '6.*' ]
         composer-options: [ '', '--prefer-lowest' ]
       fail-fast: false
@@ -17,5 +17,5 @@ jobs:
         with:
           php-version: ${{ matrix.php-version }}
       - run: composer config extra.symfony.require "${{ matrix.symfony-version }}"
-      - run: composer update ${{ matrix.composer-options }}
+      - run: composer update -n --no-ansi ${{ matrix.composer-options }}
       - run: make quality test
